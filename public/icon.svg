@@ -1,0 +1,46 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#090d16"/>
+      <stop offset="50%" stop-color="#111827"/>
+      <stop offset="100%" stop-color="#030712"/>
+    </linearGradient>
+    <linearGradient id="primaryGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#10b981"/>
+      <stop offset="100%" stop-color="#059669"/>
+    </linearGradient>
+    <linearGradient id="accentGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#34d399"/>
+      <stop offset="100%" stop-color="#10b981"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Background rounded squircle with safe zone -->
+  <rect width="512" height="512" rx="112" fill="url(#bgGrad)"/>
+  <rect x="16" y="16" width="480" height="480" rx="96" fill="none" stroke="#10b981" stroke-width="4" stroke-opacity="0.25"/>
+
+  <!-- Stylized Barbell / Lightning Bolt & Hexagon Plate -->
+  <g transform="translate(256, 256)">
+    <!-- Outer Hex Glow -->
+    <circle r="140" fill="#10b981" fill-opacity="0.08"/>
+
+    <!-- Barbell Bar -->
+    <rect x="-140" y="-12" width="280" height="24" rx="12" fill="#9ca3af"/>
+    <!-- Knurling texture accents -->
+    <rect x="-90" y="-14" width="40" height="28" rx="4" fill="#d1d5db" opacity="0.6"/>
+    <rect x="50" y="-14" width="40" height="28" rx="4" fill="#d1d5db" opacity="0.6"/>
+
+    <!-- Left Outer Weight Plate -->
+    <rect x="-165" y="-70" width="24" height="140" rx="8" fill="url(#primaryGrad)"/>
+    <rect x="-185" y="-55" width="16" height="110" rx="6" fill="#374151"/>
+
+    <!-- Right Outer Weight Plate -->
+    <rect x="141" y="-70" width="24" height="140" rx="8" fill="url(#primaryGrad)"/>
+    <rect x="169" y="-55" width="16" height="110" rx="6" fill="#374151"/>
+
+    <!-- Center Monogram "O" with energetic cut -->
+    <circle r="72" fill="none" stroke="url(#accentGrad)" stroke-width="20"/>
+    <circle r="36" fill="#0f172a"/>
+    <path d="M-10 -40 L25 -10 L0 5 L18 38 L-22 8 L-2 -6 Z" fill="#10b981"/>
+  </g>
+</svg>

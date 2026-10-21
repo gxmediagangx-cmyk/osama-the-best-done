@@ -1,0 +1,6 @@
+{
+  "name": "Osama Gym & Meal Tracker",
+  "description": "Private offline-first gym workout and nutrition tracker with smart progressive overload, rest timer, walking log, and AI-ready training export.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
