@@ -1,7 +1,8 @@
 import type {NextConfig} from 'next';
 
 const nextConfig: NextConfig = {
-  output: 'standalone',
+  // Use default Next.js output on Vercel; use standalone for AI Studio container
+  output: process.env.VERCEL ? undefined : 'standalone',
   reactStrictMode: true,
   eslint: {
     ignoreDuringBuilds: true,
