@@ -2523,18 +2523,18 @@ export const MealSystemView: React.FC<MealSystemViewProps> = ({
 
       {/* Custom Off-Menu Meal Modal */}
       {customMealModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 backdrop-blur-md p-4 animate-in fade-in">
-          <div className="w-full max-w-sm rounded-2xl border border-white/10 bg-[#14141a] p-5 shadow-2xl text-white">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 backdrop-blur-md p-3.5 sm:p-4 animate-in fade-in">
+          <div className="w-full max-w-md rounded-2xl border border-white/10 bg-[#14141a] p-5 shadow-2xl text-white max-h-[92vh] overflow-y-auto no-scrollbar">
             <div className="flex items-center justify-between pb-3 border-b border-white/10">
-              <div className="flex items-center gap-2">
-                <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-[#d4b26f]/15 text-[#d4b26f]">
-                  <Plus className="h-4 w-4" />
+              <div className="flex items-center gap-2.5">
+                <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-[#d4b26f]/15 text-[#d4b26f] shadow-inner">
+                  <Plus className="h-4 w-4 stroke-[3]" />
                 </div>
                 <div>
-                  <h3 className="text-sm font-black uppercase tracking-wider text-white">
+                  <h3 className="text-sm sm:text-base font-black uppercase tracking-wider text-white">
                     Custom Off-Menu Meal
                   </h3>
-                  <p className="text-[11px] text-zinc-400 font-mono">
+                  <p className="text-xs text-[#eed891] font-mono font-bold">
                     {customMealModal.mealName}
                   </p>
                 </div>
@@ -2542,48 +2542,39 @@ export const MealSystemView: React.FC<MealSystemViewProps> = ({
               <button
                 type="button"
                 onClick={() => setCustomMealModal(null)}
-                className="text-zinc-400 hover:text-white p-1 cursor-pointer"
+                className="text-zinc-400 hover:text-white p-1.5 rounded-lg hover:bg-white/[0.06] transition cursor-pointer"
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
 
-            <p className="mt-2.5 text-xs text-zinc-400">
-              Ate something off-menu? Enter your food details and portions below. It will automatically be selected for today.
+            <p className="mt-2.5 text-xs text-zinc-400 leading-relaxed">
+              Ate something off-menu? Type what you ate below. It will automatically be saved and selected for today.
             </p>
 
-            <div className="mt-3.5 space-y-3">
-              <div>
-                <label className="block text-[11px] font-bold uppercase tracking-wider text-zinc-400 mb-1">
-                  Option Title / Label
+            <div className="mt-3.5 space-y-3.5">
+              {/* WHAT DID YOU EAT? * (Primary, enlarged, prominent field) */}
+              <div className="rounded-2xl border-2 border-[#d4b26f]/40 bg-black/60 p-3.5 space-y-2 shadow-md">
+                <label className="block text-xs sm:text-sm font-black uppercase tracking-wider text-[#eed891] flex items-center justify-between">
+                  <span>WHAT DID YOU EAT? *</span>
+                  <span className="text-[10px] text-zinc-400 font-normal lowercase tracking-normal">
+                    (main meal item)
+                  </span>
                 </label>
-                <input
-                  type="text"
-                  value={customMealModal.optionTitle}
+                <textarea
+                  rows={3}
+                  value={customMealModal.foodName}
                   onChange={(e) =>
-                    setCustomMealModal({ ...customMealModal, optionTitle: e.target.value })
+                    setCustomMealModal({ ...customMealModal, foodName: e.target.value })
                   }
-                  placeholder="e.g. Dining Out: Salmon & Sweet Potato"
-                  className="w-full rounded-xl border border-white/15 bg-[#0b0b0e] px-3 py-2 text-xs sm:text-sm text-white focus:border-[#d4b26f] focus:outline-none"
+                  placeholder="e.g. Grilled Salmon fillet with white rice, baked sweet potato, and avocado salad..."
+                  className="w-full rounded-xl border border-white/15 bg-[#0b0b0e] p-3 text-sm sm:text-base font-bold text-white placeholder-zinc-500 focus:border-[#d4b26f] focus:outline-none leading-relaxed transition resize-none"
+                  autoFocus
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <label className="block text-[11px] font-bold uppercase tracking-wider text-zinc-400 mb-1">
-                    Food Name *
-                  </label>
-                  <input
-                    type="text"
-                    value={customMealModal.foodName}
-                    onChange={(e) =>
-                      setCustomMealModal({ ...customMealModal, foodName: e.target.value })
-                    }
-                    placeholder="e.g. Grilled Salmon"
-                    className="w-full rounded-xl border border-white/15 bg-[#0b0b0e] px-3 py-2 text-xs sm:text-sm text-white focus:border-[#d4b26f] focus:outline-none"
-                  />
-                </div>
-
+              {/* Portion and Option Title Row */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                 <div>
                   <label className="block text-[11px] font-bold uppercase tracking-wider text-zinc-400 mb-1">
                     Portion / Serving
@@ -2594,68 +2585,89 @@ export const MealSystemView: React.FC<MealSystemViewProps> = ({
                     onChange={(e) =>
                       setCustomMealModal({ ...customMealModal, portion: e.target.value })
                     }
-                    placeholder="e.g. 250g fillet"
-                    className="w-full rounded-xl border border-white/15 bg-[#0b0b0e] px-3 py-2 text-xs sm:text-sm text-white focus:border-[#d4b26f] focus:outline-none"
+                    placeholder="e.g. 250g fillet or 1 large plate"
+                    className="w-full rounded-xl border border-white/15 bg-[#0b0b0e] px-3 py-2.5 text-xs sm:text-sm text-white focus:border-[#d4b26f] focus:outline-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-bold uppercase tracking-wider text-zinc-400 mb-1">
+                    Option Title (Optional)
+                  </label>
+                  <input
+                    type="text"
+                    value={customMealModal.optionTitle}
+                    onChange={(e) =>
+                      setCustomMealModal({ ...customMealModal, optionTitle: e.target.value })
+                    }
+                    placeholder="e.g. Dining Out: Salmon"
+                    className="w-full rounded-xl border border-white/15 bg-[#0b0b0e] px-3 py-2.5 text-xs sm:text-sm text-white focus:border-[#d4b26f] focus:outline-none"
                   />
                 </div>
               </div>
 
-              <div className="grid grid-cols-4 gap-1.5 pt-1">
-                <div>
-                  <label className="block text-[10px] font-bold uppercase text-zinc-500 mb-1">
-                    Calories
-                  </label>
-                  <input
-                    type="number"
-                    value={customMealModal.calories}
-                    onChange={(e) =>
-                      setCustomMealModal({ ...customMealModal, calories: e.target.value })
-                    }
-                    placeholder="kcal"
-                    className="w-full rounded-lg border border-white/10 bg-[#0b0b0e] p-2 text-xs font-mono text-white focus:border-[#d4b26f] focus:outline-none"
-                  />
-                </div>
-                <div>
-                  <label className="block text-[10px] font-bold uppercase text-emerald-400 mb-1">
-                    Protein
-                  </label>
-                  <input
-                    type="number"
-                    value={customMealModal.protein}
-                    onChange={(e) =>
-                      setCustomMealModal({ ...customMealModal, protein: e.target.value })
-                    }
-                    placeholder="g"
-                    className="w-full rounded-lg border border-white/10 bg-[#0b0b0e] p-2 text-xs font-mono text-white focus:border-[#d4b26f] focus:outline-none"
-                  />
-                </div>
-                <div>
-                  <label className="block text-[10px] font-bold uppercase text-amber-400 mb-1">
-                    Carbs
-                  </label>
-                  <input
-                    type="number"
-                    value={customMealModal.carbs}
-                    onChange={(e) =>
-                      setCustomMealModal({ ...customMealModal, carbs: e.target.value })
-                    }
-                    placeholder="g"
-                    className="w-full rounded-lg border border-white/10 bg-[#0b0b0e] p-2 text-xs font-mono text-white focus:border-[#d4b26f] focus:outline-none"
-                  />
-                </div>
-                <div>
-                  <label className="block text-[10px] font-bold uppercase text-rose-400 mb-1">
-                    Fats
-                  </label>
-                  <input
-                    type="number"
-                    value={customMealModal.fats}
-                    onChange={(e) =>
-                      setCustomMealModal({ ...customMealModal, fats: e.target.value })
-                    }
-                    placeholder="g"
-                    className="w-full rounded-lg border border-white/10 bg-[#0b0b0e] p-2 text-xs font-mono text-white focus:border-[#d4b26f] focus:outline-none"
-                  />
+              {/* Macro Estimates Row */}
+              <div>
+                <label className="block text-[11px] font-bold uppercase tracking-wider text-zinc-400 mb-1.5">
+                  Estimated Nutrition (Optional)
+                </label>
+                <div className="grid grid-cols-4 gap-1.5">
+                  <div className="rounded-xl border border-white/10 bg-[#0b0b0e] p-1.5 text-center">
+                    <label className="block text-[10px] font-bold uppercase text-zinc-400 mb-0.5">
+                      Calories
+                    </label>
+                    <input
+                      type="number"
+                      value={customMealModal.calories}
+                      onChange={(e) =>
+                        setCustomMealModal({ ...customMealModal, calories: e.target.value })
+                      }
+                      placeholder="kcal"
+                      className="w-full bg-transparent p-1 text-center text-xs font-mono font-bold text-white focus:outline-none"
+                    />
+                  </div>
+                  <div className="rounded-xl border border-emerald-500/30 bg-[#0b0b0e] p-1.5 text-center">
+                    <label className="block text-[10px] font-bold uppercase text-emerald-400 mb-0.5">
+                      Protein
+                    </label>
+                    <input
+                      type="number"
+                      value={customMealModal.protein}
+                      onChange={(e) =>
+                        setCustomMealModal({ ...customMealModal, protein: e.target.value })
+                      }
+                      placeholder="g"
+                      className="w-full bg-transparent p-1 text-center text-xs font-mono font-bold text-emerald-300 focus:outline-none"
+                    />
+                  </div>
+                  <div className="rounded-xl border border-amber-500/30 bg-[#0b0b0e] p-1.5 text-center">
+                    <label className="block text-[10px] font-bold uppercase text-amber-400 mb-0.5">
+                      Carbs
+                    </label>
+                    <input
+                      type="number"
+                      value={customMealModal.carbs}
+                      onChange={(e) =>
+                        setCustomMealModal({ ...customMealModal, carbs: e.target.value })
+                      }
+                      placeholder="g"
+                      className="w-full bg-transparent p-1 text-center text-xs font-mono font-bold text-amber-300 focus:outline-none"
+                    />
+                  </div>
+                  <div className="rounded-xl border border-rose-500/30 bg-[#0b0b0e] p-1.5 text-center">
+                    <label className="block text-[10px] font-bold uppercase text-rose-400 mb-0.5">
+                      Fats
+                    </label>
+                    <input
+                      type="number"
+                      value={customMealModal.fats}
+                      onChange={(e) =>
+                        setCustomMealModal({ ...customMealModal, fats: e.target.value })
+                      }
+                      placeholder="g"
+                      className="w-full bg-transparent p-1 text-center text-xs font-mono font-bold text-rose-300 focus:outline-none"
+                    />
+                  </div>
                 </div>
               </div>
             </div>
@@ -2664,14 +2676,14 @@ export const MealSystemView: React.FC<MealSystemViewProps> = ({
               <button
                 type="button"
                 onClick={() => setCustomMealModal(null)}
-                className="flex-1 rounded-xl border border-white/10 bg-white/[0.04] py-2.5 text-xs font-semibold text-zinc-300 hover:bg-white/[0.08] cursor-pointer"
+                className="flex-1 rounded-xl border border-white/10 bg-white/[0.04] py-3 text-xs font-semibold text-zinc-300 hover:bg-white/[0.08] active:scale-95 transition cursor-pointer"
               >
                 Cancel
               </button>
               <button
                 type="button"
                 onClick={handleSaveCustomMealOption}
-                className="flex-1 rounded-xl bg-[#d4b26f] py-2.5 text-xs font-black uppercase text-black hover:bg-[#e2c487] cursor-pointer"
+                className="flex-1 rounded-xl bg-[#d4b26f] py-3 text-xs font-black uppercase text-black hover:bg-[#e2c487] active:scale-95 transition cursor-pointer shadow-md"
               >
                 Save &amp; Select
               </button>
@@ -2679,6 +2691,7 @@ export const MealSystemView: React.FC<MealSystemViewProps> = ({
           </div>
         </div>
       )}
+
 
       {/* Option Editor Modal (Add new option or edit existing option) */}
       {optionEditorModal && optionEditorModal.isOpen && (

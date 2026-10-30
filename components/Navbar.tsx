@@ -47,8 +47,8 @@ export const Navbar: React.FC<NavbarProps> = ({
 
           <div className="min-w-0 flex-1">
             <div suppressHydrationWarning className="flex items-center gap-1.5 min-w-0">
-              <span className="truncate text-[15px] font-bold tracking-tight text-white leading-none">
-                Osama
+              <span className="truncate text-[15px] font-extrabold tracking-tight text-white leading-none">
+                Osama the best
               </span>
 
               {mounted && !isOnline && (
@@ -58,6 +58,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                 </span>
               )}
             </div>
+
 
             <div className="flex items-center gap-1.5 text-[11px] text-zinc-400 mt-1 whitespace-nowrap">
               <span className="flex items-center gap-1 text-[#d4b26f] font-semibold">

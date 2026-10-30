@@ -11,13 +11,13 @@ export const viewport: Viewport = {
 
 export const metadata: Metadata = {
   metadataBase: new URL('https://osama-gym.local'),
-  title: 'Osama Gym & Meal Tracker',
-  description: 'Private offline-first gym workout and nutrition tracker with smart progressive overload, rest timer, walking log, and AI-ready training export.',
-  applicationName: 'Osama Gym & Meal Tracker',
+  title: 'Osama the best',
+  description: 'Private offline-first workout, boxing, and nutrition tracker with smart progressive overload, rest timer, walking log, and AI-ready training export.',
+  applicationName: 'Osama the best',
   appleWebApp: {
     capable: true,
     statusBarStyle: 'black-translucent',
-    title: 'Osama Gym & Meal Tracker',
+    title: 'Osama the best',
   },
   icons: {
     icon: [
@@ -29,25 +29,26 @@ export const metadata: Metadata = {
     ],
   },
   openGraph: {
-    title: 'Osama Gym & Meal Tracker',
-    description: 'Private offline-first gym workout and nutrition tracker with smart progressive overload, rest timer, walking log, and AI-ready training export.',
+    title: 'Osama the best',
+    description: 'Private offline-first workout, boxing, and nutrition tracker with smart progressive overload, rest timer, walking log, and AI-ready training export.',
     type: 'website',
     images: [
       {
         url: '/app-cover.jpg',
         width: 1280,
         height: 720,
-        alt: 'Osama Gym & Meal Tracker Cover',
+        alt: 'Osama the best Cover',
       },
     ],
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'Osama Gym & Meal Tracker',
-    description: 'Private offline-first gym workout and nutrition tracker with smart progressive overload, rest timer, walking log, and AI-ready training export.',
+    title: 'Osama the best',
+    description: 'Private offline-first workout, boxing, and nutrition tracker with smart progressive overload, rest timer, walking log, and AI-ready training export.',
     images: ['/app-cover.jpg'],
   },
 };
+
 
 export default function RootLayout({
   children,

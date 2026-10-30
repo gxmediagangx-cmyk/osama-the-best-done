@@ -212,6 +212,7 @@ export interface BoxingRound {
   restSeconds: number;     // e.g. 60 (1 min)
   completed: boolean;
   focusCombo?: string;     // optional specific combo or focus for this round
+  notes?: string;          // optional specific note for this round/set
   reps?: number;           // Actual reps logged (for reps / weight_reps mode)
   weight?: number;         // Actual weight logged (for weight_reps / weight_time / weight mode)
   targetReps?: number;     // Target reps goal
@@ -267,6 +268,12 @@ export interface CompletedBoxingLog {
     roundDurationSeconds: number;
     comboOrCues?: string;
     notes?: string; // Today's session feedback notes for this drill
+    roundDetails?: {
+      roundNumber: number;
+      completed: boolean;
+      focusCombo?: string;
+      notes?: string;
+    }[];
     repsSummary?: string;
   }[];
   userNotes?: string;

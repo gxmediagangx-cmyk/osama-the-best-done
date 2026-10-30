@@ -35,8 +35,46 @@ export const WorkoutSystemView: React.FC<WorkoutSystemViewProps> = ({
   onActiveSessionChange,
 }) => {
   const currentSystem = systems.find((s) => s.isCurrent) || systems[0] || null;
-  const [activeDayId, setActiveDayId] = useState<string | null>(null);
-  const [activeVariant, setActiveVariant] = useState<'session1' | 'session2'>('session1');
+  const [activeDayId, setActiveDayId] = useState<string | null>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        return localStorage.getItem('osama_active_workout_day_id') || null;
+      } catch {
+        return null;
+      }
+    }
+    return null;
+  });
+  const [activeVariant, setActiveVariant] = useState<'session1' | 'session2'>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const saved = localStorage.getItem('osama_active_workout_variant');
+        if (saved === 'session1' || saved === 'session2') return saved;
+      } catch {
+        return 'session1';
+      }
+    }
+    return 'session1';
+  });
+
+  const handleSelectActiveDay = (dayId: string | null, variant?: 'session1' | 'session2') => {
+    setActiveDayId(dayId);
+    if (variant) setActiveVariant(variant);
+    if (typeof window !== 'undefined') {
+      try {
+        if (dayId) {
+          localStorage.setItem('osama_active_workout_day_id', dayId);
+        } else {
+          localStorage.removeItem('osama_active_workout_day_id');
+        }
+        if (variant) {
+          localStorage.setItem('osama_active_workout_variant', variant);
+        }
+      } catch {
+        // Ignore storage errors
+      }
+    }
+  };
 
   // Notify parent if active session state changes
   React.useEffect(() => {
@@ -199,7 +237,7 @@ export const WorkoutSystemView: React.FC<WorkoutSystemViewProps> = ({
         initialVariant={activeVariant}
         settings={settings}
         onExit={() => {
-          setActiveDayId(null);
+          handleSelectActiveDay(null);
           if (typeof window !== 'undefined') window.scrollTo({ top: 0 });
         }}
         onRenameDay={handleRenameActiveDay}
@@ -222,8 +260,7 @@ export const WorkoutSystemView: React.FC<WorkoutSystemViewProps> = ({
       settings={settings}
       workoutLogs={workoutLogs}
       onSelectDayToStart={(dayId, variant) => {
-        setActiveDayId(dayId);
-        if (variant) setActiveVariant(variant);
+        handleSelectActiveDay(dayId, variant);
         if (typeof window !== 'undefined') window.scrollTo({ top: 0 });
       }}
       onUpdateSystems={onUpdateSystems}

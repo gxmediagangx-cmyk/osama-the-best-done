@@ -22,11 +22,14 @@ import {
   Palette,
   AlertTriangle,
   Lock,
+  Copy,
 } from 'lucide-react';
 import { soundManager } from '@/lib/sound';
 import { APP_THEMES } from '@/lib/themes';
 import { AppThemeId } from '@/lib/types';
 import { PWAInstallButton } from '@/components/PWAInstallButton';
+import { copyTextToClipboard } from '@/lib/export-ai';
+
 
 interface SettingsViewProps {
   settings: AppSettings;
@@ -90,6 +93,8 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
     setTimeout(() => setSavedSuccess(false), 2000);
   };
 
+  const [backupCopied, setBackupCopied] = useState(false);
+
   const handleExportBackup = () => {
     localDb.exportFullBackup({
       settings: formData,
@@ -102,6 +107,25 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
     });
     soundManager.playClickPop();
   };
+
+  const handleCopyBackup = async () => {
+    const jsonStr = localDb.getBackupJSONString({
+      settings: formData,
+      workoutSystems,
+      mealSystems,
+      walkingSessions,
+      workoutLogs,
+      boxingWorkouts,
+      boxingLogs,
+    });
+    const success = await copyTextToClipboard(jsonStr);
+    if (success) {
+      soundManager.playClickPop();
+      setBackupCopied(true);
+      setTimeout(() => setBackupCopied(false), 2500);
+    }
+  };
+
 
   const handleImportFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -595,14 +619,32 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
           Download or import your entire gym history and programs as a single JSON file
         </p>
 
-        <div className="grid grid-cols-2 gap-2.5">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
           <button
             type="button"
             onClick={handleExportBackup}
-            className="flex items-center justify-center gap-1.5 rounded-xl border border-white/10 bg-[#181820] py-3 text-xs font-bold text-zinc-200 hover:text-white"
+            className="flex items-center justify-center gap-1.5 rounded-xl border border-white/10 bg-[#181820] py-3 px-2 text-xs font-bold text-zinc-200 hover:text-white hover:border-[#d4b26f]/40 active:scale-95 transition cursor-pointer"
           >
             <Download className="w-4 h-4 text-[#d4b26f]" />
-            <span>Export Backup</span>
+            <span>Download JSON</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={handleCopyBackup}
+            className="flex items-center justify-center gap-1.5 rounded-xl border border-white/10 bg-[#181820] py-3 px-2 text-xs font-bold text-zinc-200 hover:text-white hover:border-[#d4b26f]/40 active:scale-95 transition cursor-pointer"
+          >
+            {backupCopied ? (
+              <>
+                <Check className="w-4 h-4 text-emerald-400 stroke-[3]" />
+                <span className="text-emerald-400">Copied!</span>
+              </>
+            ) : (
+              <>
+                <Copy className="w-4 h-4 text-[#eed891]" />
+                <span>Copy to Clipboard</span>
+              </>
+            )}
           </button>
 
           <input
@@ -616,12 +658,13 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
           <button
             type="button"
             onClick={() => fileInputRef.current?.click()}
-            className="flex items-center justify-center gap-1.5 rounded-xl border border-white/10 bg-[#181820] py-3 text-xs font-bold text-zinc-200 hover:text-white"
+            className="flex items-center justify-center gap-1.5 rounded-xl border border-white/10 bg-[#181820] py-3 px-2 text-xs font-bold text-zinc-200 hover:text-white hover:border-[#eed891]/40 active:scale-95 transition cursor-pointer"
           >
             <Upload className="w-4 h-4 text-[#eed891]" />
             <span>Restore Backup</span>
           </button>
         </div>
+
 
         {importStatus && (
           <div className="mt-2.5 text-center text-xs font-semibold text-[#eed891]">

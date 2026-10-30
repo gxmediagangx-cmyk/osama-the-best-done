@@ -19,7 +19,9 @@ import {
   generateNutritionReportText,
   getTodayDateKey,
   formatReadableDateKey,
+  copyTextToClipboard,
 } from '@/lib/export-ai';
+
 import {
   Sparkles,
   Copy,
@@ -107,63 +109,58 @@ export const HistoryView: React.FC<HistoryViewProps> = ({
   });
 
   const handleCopyGymReport = async () => {
-    try {
-      const text = generateGymReportText({
-        dateKey: selectedDateKey,
-        userName,
-        unit,
-        workoutLogs: logs,
-        boxingLogs,
-        workoutSystems,
-      });
-      await navigator.clipboard.writeText(text);
+    const text = generateGymReportText({
+      dateKey: selectedDateKey,
+      userName,
+      unit,
+      workoutLogs: logs,
+      boxingLogs,
+      workoutSystems,
+    });
+    const success = await copyTextToClipboard(text);
+    if (success) {
       setCopiedHistoryType('gym');
       soundManager.playClickPop();
       setTimeout(() => setCopiedHistoryType(null), 2200);
-    } catch {
-      // Fallback
     }
   };
 
   const handleCopyNutritionReport = async () => {
-    try {
-      const text = generateNutritionReportText({
-        dateKey: selectedDateKey,
-        userName,
-        nutritionLogs,
-        currentMealSystem,
-        walkingSessions,
-      });
-      await navigator.clipboard.writeText(text);
+    const text = generateNutritionReportText({
+      dateKey: selectedDateKey,
+      userName,
+      nutritionLogs,
+      currentMealSystem,
+      walkingSessions,
+    });
+    const success = await copyTextToClipboard(text);
+    if (success) {
       setCopiedHistoryType('nutrition');
       soundManager.playClickPop();
       setTimeout(() => setCopiedHistoryType(null), 2200);
-    } catch {
-      // Fallback
     }
   };
 
   const handleCopyDailyReport = async () => {
-    try {
-      const text = generateDailyReportText({
-        dateKey: selectedDateKey,
-        userName,
-        unit,
-        workoutLogs: logs,
-        boxingLogs,
-        nutritionLogs,
-        currentMealSystem,
-        workoutSystems,
-        walkingSessions,
-      });
-      await navigator.clipboard.writeText(text);
+    const text = generateDailyReportText({
+      dateKey: selectedDateKey,
+      userName,
+      unit,
+      workoutLogs: logs,
+      boxingLogs,
+      nutritionLogs,
+      currentMealSystem,
+      workoutSystems,
+      walkingSessions,
+    });
+    const success = await copyTextToClipboard(text);
+    if (success) {
       setCopiedHistoryType('combined');
       soundManager.playClickPop();
       setTimeout(() => setCopiedHistoryType(null), 2200);
-    } catch {
-      // Fallback
     }
   };
+
 
   return (
     <div className="space-y-4 pb-32">
@@ -603,6 +600,22 @@ export const HistoryView: React.FC<HistoryViewProps> = ({
                           <div className="text-[11px] text-sky-300/90 pl-1 flex items-start gap-1">
                             <span className="text-sky-400 shrink-0">📝</span>
                             <span className="italic leading-tight">{d.notes}</span>
+                          </div>
+                        )}
+                        {d.roundDetails && d.roundDetails.some((r) => r.focusCombo || r.notes) && (
+                          <div className="pl-2 pt-0.5 space-y-0.5 text-[11px] font-mono text-zinc-400">
+                            {d.roundDetails.map((r, rIdx) => {
+                              if (!r.focusCombo && !r.notes) return null;
+                              return (
+                                <div key={rIdx} className="flex items-start gap-1">
+                                  <span className="text-[#eed891] shrink-0 font-bold">R{r.roundNumber}:</span>
+                                  <span className="text-zinc-300">
+                                    {r.focusCombo}
+                                    {r.notes ? ` (Note: ${r.notes})` : ''}
+                                  </span>
+                                </div>
+                              );
+                            })}
                           </div>
                         )}
                       </div>

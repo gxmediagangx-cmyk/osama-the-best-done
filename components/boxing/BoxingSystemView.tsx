@@ -267,6 +267,12 @@ export const BoxingSystemView: React.FC<BoxingSystemViewProps> = ({
           roundDurationSeconds: d.roundDurationSeconds,
           comboOrCues: d.comboOrCues,
           notes: d.notes?.trim() || undefined,
+          roundDetails: d.rounds.map((r) => ({
+            roundNumber: r.roundNumber,
+            completed: r.completed,
+            focusCombo: r.focusCombo?.trim() || undefined,
+            notes: r.notes?.trim() || undefined,
+          })),
           repsSummary:
             d.trackingMode === 'reps' || d.trackingMode === 'weight_reps'
               ? `${d.rounds.length} sets × ${d.defaultReps || d.rounds[0]?.reps || 15} reps${
@@ -355,8 +361,13 @@ export const BoxingSystemView: React.FC<BoxingSystemViewProps> = ({
                   {completedRounds}/{totalRounds} Rds ({progressPercent}%)
                 </span>
               </div>
-              <h1 className="text-base sm:text-lg font-extrabold tracking-tight text-white mt-1 leading-snug">
-                {activeWorkout.name}
+              <h1
+                onClick={() => setEditingWorkout(activeWorkout)}
+                className="text-base sm:text-lg font-extrabold tracking-tight text-white mt-1 leading-snug cursor-pointer hover:text-[#eed891] transition flex items-center gap-1.5 group select-none"
+                title="Tap to edit session name and details"
+              >
+                <span>{activeWorkout.name}</span>
+                <Edit3 className="w-3.5 h-3.5 text-zinc-500 group-hover:text-[#d4b26f] transition shrink-0 opacity-70 group-hover:opacity-100" />
               </h1>
             </div>
 

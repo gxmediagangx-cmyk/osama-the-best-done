@@ -148,10 +148,89 @@ export const BoxingDrillCard: React.FC<BoxingDrillCardProps> = ({
   const [editNotes, setEditNotes] = useState(drill.notes || '');
   const [editRoundSecs, setEditRoundSecs] = useState(drill.roundDurationSeconds || 60);
   const [editRestSecs, setEditRestSecs] = useState(drill.restSeconds || 60);
+  const [editRoundsCount, setEditRoundsCount] = useState(drill.rounds.length || 3);
 
   // Dedicated Today's Session Note state
   const [isEditingNotes, setIsEditingNotes] = useState(false);
   const [notesText, setNotesText] = useState(drill.notes || '');
+  const [prevDrillNotes, setPrevDrillNotes] = useState(drill.notes);
+  if (drill.notes !== prevDrillNotes) {
+    setPrevDrillNotes(drill.notes);
+    if (!isEditingNotes) setNotesText(drill.notes || '');
+  }
+
+  // Per-round independent editor state
+  const [editingRoundId, setEditingRoundId] = useState<string | null>(null);
+  const [roundComboText, setRoundComboText] = useState('');
+  const [roundNotesText, setRoundNotesText] = useState('');
+  const [roundWorkSecs, setRoundWorkSecs] = useState(60);
+  const [roundRestSecs, setRoundRestSecs] = useState(60);
+  const [roundReps, setRoundReps] = useState(15);
+  const [roundWeight, setRoundWeight] = useState(10);
+
+  const handleStartEditRound = (r: BoxingRound) => {
+    setEditingRoundId(r.id);
+    setRoundComboText(r.focusCombo || '');
+    setRoundNotesText(r.notes || '');
+    setRoundWorkSecs(r.durationSeconds || drill.roundDurationSeconds || 60);
+    setRoundRestSecs(r.restSeconds || drill.restSeconds || 60);
+    setRoundReps(r.reps ?? r.targetReps ?? drill.defaultReps ?? 15);
+    setRoundWeight(r.weight ?? r.targetWeight ?? drill.defaultWeight ?? 10);
+    soundManager.playClickPop();
+  };
+
+  const handleSaveRoundDetails = (roundId: string) => {
+    const isReps = trackingMode === 'reps' || trackingMode === 'weight_reps';
+    const isWeight =
+      trackingMode === 'weight' ||
+      trackingMode === 'weight_reps' ||
+      trackingMode === 'weight_time';
+
+    const updatedRounds = drill.rounds.map((r) => {
+      if (r.id === roundId) {
+        return {
+          ...r,
+          focusCombo: roundComboText.trim() || undefined,
+          notes: roundNotesText.trim() || undefined,
+          durationSeconds: roundWorkSecs,
+          restSeconds: roundRestSecs,
+          reps: isReps ? roundReps : r.reps,
+          weight: isWeight ? roundWeight : r.weight,
+          targetReps: isReps ? roundReps : r.targetReps,
+          targetWeight: isWeight ? roundWeight : r.targetWeight,
+        };
+      }
+      return r;
+    });
+
+    onUpdateDrill({
+      ...drill,
+      rounds: updatedRounds,
+    });
+
+    setEditingRoundId(null);
+    soundManager.playClickPop();
+  };
+
+  const handleCancelEditRound = () => {
+    setEditingRoundId(null);
+  };
+
+  const openEditDetails = () => {
+    setEditName(drill.name);
+    setEditCategory(drill.category);
+    setEditTrackingMode(drill.trackingMode || 'time');
+    setEditDefaultReps(drill.defaultReps || 15);
+    setEditDefaultWeight(drill.defaultWeight || 10);
+    setEditCombo(drill.comboOrCues || '');
+    setEditNotes(drill.notes || '');
+    setEditRoundSecs(drill.roundDurationSeconds || 60);
+    setEditRestSecs(drill.restSeconds || 60);
+    setEditRoundsCount(drill.rounds.length || 3);
+    setIsEditingDetails(true);
+    setShowMenu(false);
+    soundManager.playClickPop();
+  };
 
   const trackingMode: BoxingTrackingMode = drill.trackingMode || 'time';
   const hasReps = trackingMode === 'reps' || trackingMode === 'weight_reps';
@@ -407,8 +486,31 @@ export const BoxingDrillCard: React.FC<BoxingDrillCardProps> = ({
       editTrackingMode === 'weight_reps' ||
       editTrackingMode === 'weight_time';
 
-    const updatedRounds = drill.rounds.map((r) => ({
+    const targetCount = Math.max(1, Math.min(30, editRoundsCount));
+    let nextRounds = [...drill.rounds];
+
+    if (nextRounds.length < targetCount) {
+      const startRound = nextRounds.length + 1;
+      for (let i = startRound; i <= targetCount; i++) {
+        nextRounds.push({
+          id: `${drill.id}-r${i}-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+          roundNumber: i,
+          completed: false,
+          durationSeconds: editRoundSecs,
+          restSeconds: editRestSecs,
+          reps: isReps ? editDefaultReps : undefined,
+          targetReps: isReps ? editDefaultReps : undefined,
+          weight: isWeight ? editDefaultWeight : undefined,
+          targetWeight: isWeight ? editDefaultWeight : undefined,
+        });
+      }
+    } else if (nextRounds.length > targetCount) {
+      nextRounds = nextRounds.slice(0, targetCount);
+    }
+
+    const updatedRounds = nextRounds.map((r, index) => ({
       ...r,
+      roundNumber: index + 1,
       durationSeconds: editRoundSecs,
       restSeconds: editRestSecs,
       reps: isReps ? (r.reps ?? editDefaultReps) : undefined,
@@ -513,23 +615,41 @@ export const BoxingDrillCard: React.FC<BoxingDrillCardProps> = ({
                   </span>
                 </span>
 
-                <span className="text-[11px] font-bold uppercase tracking-wider text-zinc-400">
-                  {CATEGORY_LABELS[drill.category]}
-                </span>
+                <button
+                  type="button"
+                  onClick={openEditDetails}
+                  className="text-[11px] font-bold uppercase tracking-wider text-zinc-400 hover:text-[#eed891] transition cursor-pointer flex items-center gap-1"
+                  title="Click to edit category"
+                >
+                  <span>{CATEGORY_LABELS[drill.category]}</span>
+                </button>
               </div>
 
-              <h3
-                className={`mt-1 text-base sm:text-lg font-bold tracking-tight break-words leading-snug ${
-                  isAllDone ? 'text-zinc-400 line-through decoration-[#d4b26f]/70' : 'text-white'
-                }`}
+              {/* Title with Tap to Edit & Pencil Icon */}
+              <div
+                onClick={openEditDetails}
+                className="group mt-1 flex items-center gap-2 cursor-pointer select-none"
+                title="Tap to edit exercise name, rounds, timer & cues"
               >
-                {drill.name}
-              </h3>
+                <h3
+                  className={`text-base sm:text-lg font-bold tracking-tight break-words leading-snug transition group-hover:text-[#eed891] ${
+                    isAllDone ? 'text-zinc-400 line-through decoration-[#d4b26f]/70' : 'text-white'
+                  }`}
+                >
+                  {drill.name}
+                </h3>
+                <span className="flex items-center gap-1 text-[11px] font-bold text-zinc-400 group-hover:text-[#d4b26f] bg-white/[0.04] group-hover:bg-[#d4b26f]/15 border border-white/10 group-hover:border-[#d4b26f]/30 px-1.5 py-0.5 rounded-md transition shrink-0">
+                  <Pencil className="w-2.5 h-2.5 text-[#d4b26f]" />
+                  <span>Edit</span>
+                </span>
+              </div>
             </div>
           </div>
 
-          {/* Right Expand & Menu */}
+          {/* Right Controls: Expand + Menu (clean, single edit via title/badge) */}
           <div className="flex items-center gap-1 shrink-0">
+
+
             <button
               type="button"
               onClick={() => setIsExpanded(!isExpanded)}
@@ -551,19 +671,7 @@ export const BoxingDrillCard: React.FC<BoxingDrillCardProps> = ({
                 <div className="absolute right-0 top-full z-30 mt-1 w-52 rounded-2xl border border-white/10 bg-[#181820] p-1.5 shadow-2xl text-xs">
                   <button
                     type="button"
-                    onClick={() => {
-                      setEditName(drill.name);
-                      setEditCategory(drill.category);
-                      setEditTrackingMode(drill.trackingMode || 'time');
-                      setEditDefaultReps(drill.defaultReps || 15);
-                      setEditDefaultWeight(drill.defaultWeight || 10);
-                      setEditCombo(drill.comboOrCues || '');
-                      setEditNotes(drill.notes || '');
-                      setEditRoundSecs(drill.roundDurationSeconds || 60);
-                      setEditRestSecs(drill.restSeconds || 60);
-                      setIsEditingDetails(true);
-                      setShowMenu(false);
-                    }}
+                    onClick={openEditDetails}
                     className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-zinc-200 hover:bg-zinc-800 font-medium cursor-pointer"
                   >
                     <Edit3 className="w-3.5 h-3.5 text-[#d4b26f]" />
@@ -626,45 +734,52 @@ export const BoxingDrillCard: React.FC<BoxingDrillCardProps> = ({
 
         {/* Second Row: Summary & Reorder */}
         <div className="mt-2 flex items-center justify-between gap-2 border-t border-white/[0.04] pt-2">
-          <div className="flex items-center gap-1.5 text-xs text-zinc-400 whitespace-nowrap min-w-0 flex-wrap">
-            <span className="font-mono font-bold text-[#eed891]">
+          <div
+            onClick={openEditDetails}
+            className="flex items-center gap-1.5 rounded-lg border border-white/10 hover:border-[#d4b26f]/50 bg-black/40 hover:bg-black/60 px-2.5 py-1 text-xs text-zinc-300 whitespace-nowrap min-w-0 flex-wrap cursor-pointer transition group/summary shadow-xs"
+            title="Tap to edit rounds, target weights/reps & durations"
+          >
+            <Pencil className="w-3 h-3 text-[#d4b26f] opacity-80 group-hover/summary:opacity-100 shrink-0" />
+            <span className="font-mono font-bold text-[#eed891] group-hover/summary:underline underline-offset-2">
               {completedRoundsCount}/{drill.rounds.length}{' '}
               {hasReps || trackingMode === 'weight' ? 'Sets' : 'Rds'}
             </span>
             <span className="text-zinc-600">·</span>
             {trackingMode === 'reps' && (
-              <span className="font-mono text-xs text-zinc-300">
+              <span className="font-mono text-xs text-zinc-200">
                 Target: {drill.defaultReps || drill.rounds[0]?.reps || 15} Reps · Rest {drill.restSeconds}s
               </span>
             )}
             {trackingMode === 'weight_reps' && (
-              <span className="font-mono text-xs text-zinc-300">
+              <span className="font-mono text-xs text-zinc-200">
                 Target: {drill.defaultWeight || drill.rounds[0]?.weight || 10}{weightUnit} ×{' '}
                 {drill.defaultReps || drill.rounds[0]?.reps || 20} Reps
               </span>
             )}
             {trackingMode === 'weight' && (
-              <span className="font-mono text-xs text-zinc-300">
+              <span className="font-mono text-xs text-zinc-200">
                 Target: {drill.defaultWeight || drill.rounds[0]?.weight || 20}{weightUnit} · Rest {drill.restSeconds}s
               </span>
             )}
             {trackingMode === 'weight_time' && (
-              <span className="font-mono text-xs text-zinc-300">
+              <span className="font-mono text-xs text-zinc-200">
                 {drill.defaultWeight || 10}{weightUnit} · {formatTime(drill.roundDurationSeconds)} Work
               </span>
             )}
             {trackingMode === 'time' && (
-              <span className="font-mono text-xs">
+              <span className="font-mono text-xs text-zinc-200 group-hover/summary:text-[#eed891]">
                 {formatTime(drill.roundDurationSeconds)} Work / {drill.restSeconds}s Rest
               </span>
             )}
+
 
             {/* Today's Session Note Pill (Resets upon saving workout) */}
             <span className="text-zinc-600 shrink-0">·</span>
             {drill.notes ? (
               <button
                 type="button"
-                onClick={() => {
+                onClick={(e) => {
+                  e.stopPropagation();
                   setNotesText(drill.notes || '');
                   setIsEditingNotes(!isEditingNotes);
                   soundManager.playClickPop();
@@ -678,7 +793,8 @@ export const BoxingDrillCard: React.FC<BoxingDrillCardProps> = ({
             ) : (
               <button
                 type="button"
-                onClick={() => {
+                onClick={(e) => {
+                  e.stopPropagation();
                   setNotesText('');
                   setIsEditingNotes(true);
                   soundManager.playClickPop();
@@ -1000,6 +1116,12 @@ export const BoxingDrillCard: React.FC<BoxingDrillCardProps> = ({
           <textarea
             value={notesText}
             onChange={(e) => setNotesText(e.target.value)}
+            onBlur={() => {
+              const trimmed = notesText.trim();
+              if (trimmed !== (drill.notes || '')) {
+                onUpdateDrill({ ...drill, notes: trimmed || undefined });
+              }
+            }}
             placeholder="e.g. Felt snappy on combinations, need to keep chin tucked during exit, right hand dropped in round 3..."
             className="w-full rounded-lg border border-sky-500/20 bg-zinc-950 p-2.5 text-xs sm:text-sm text-white placeholder-zinc-500 focus:border-sky-400 focus:outline-none"
             rows={2}
@@ -1024,52 +1146,195 @@ export const BoxingDrillCard: React.FC<BoxingDrillCardProps> = ({
         </div>
       )}
 
-      {/* Combination / Technical Cues Box */}
+      {/* Combination / Technical Cues Box with Large High-Contrast Font */}
       {!isEditingDetails && drill.comboOrCues && (
         <div
-          onClick={() => {
-            setEditName(drill.name);
-            setEditCategory(drill.category);
-            setEditTrackingMode(drill.trackingMode || 'time');
-            setEditDefaultReps(drill.defaultReps || 15);
-            setEditDefaultWeight(drill.defaultWeight || 10);
-            setEditCombo(drill.comboOrCues || '');
-            setEditNotes(drill.notes || '');
-            setEditRoundSecs(drill.roundDurationSeconds || 60);
-            setEditRestSecs(drill.restSeconds || 60);
-            setIsEditingDetails(true);
-          }}
-          className="mx-3.5 mb-2.5 cursor-pointer rounded-xl border border-[#d4b26f]/20 bg-[#181822] px-3 py-2.5 text-xs sm:text-sm hover:border-[#d4b26f]/40 transition"
-          title="Tap to customize cues and details"
+          onClick={openEditDetails}
+          className="mx-3.5 mb-2.5 cursor-pointer rounded-2xl border-2 border-[#d4b26f]/40 bg-black/75 p-3.5 sm:p-4 hover:border-[#d4b26f] transition group shadow-md"
+          title="Tap to customize cues, timing and combinations"
         >
-          <div className="flex items-center justify-between text-[11px] font-black uppercase tracking-wider text-[#d4b26f] mb-1">
-            <span className="flex items-center gap-1">
-              <Flame className="w-3.5 h-3.5" />
+          <div className="flex items-center justify-between text-xs sm:text-sm font-black uppercase tracking-wider text-[#d4b26f] mb-1.5">
+            <span className="flex items-center gap-1.5 text-[#eed891]">
+              <Flame className="w-4 h-4 text-[#d4b26f] fill-current" />
               Focus & Form Cue
             </span>
-            <span className="text-zinc-400 font-normal">Tap to edit</span>
+            <span className="text-[11px] font-bold text-zinc-400 group-hover:text-[#eed891] bg-white/[0.05] border border-white/10 px-2 py-0.5 rounded-md flex items-center gap-1">
+              <Pencil className="w-3 h-3 text-[#d4b26f]" />
+              Tap to edit
+            </span>
           </div>
-          <div className="font-mono text-xs sm:text-sm text-zinc-100 leading-relaxed">
+          <div className="font-mono text-lg sm:text-xl md:text-2xl font-black text-amber-200 tracking-wide leading-relaxed break-words drop-shadow-sm">
             {drill.comboOrCues}
           </div>
         </div>
       )}
 
-      {/* Inline Editor for Name, Tracking Mode, Target Reps/Weight, Combo, and Notes */}
+
+      {/* Inline Editor for Name, Category, Rounds, Timing, Tracking Mode, Target Reps/Weight, Combo, and Notes */}
       {isEditingDetails && (
-        <div className="mx-3.5 mb-3 rounded-xl border border-[#d4b26f]/40 bg-[#181822] p-3 space-y-2.5">
+        <div className="mx-3.5 mb-3 rounded-2xl border-2 border-[#d4b26f]/60 bg-[#151520] p-3.5 space-y-3.5 shadow-xl">
+          <div className="flex items-center justify-between border-b border-white/10 pb-2">
+            <span className="text-xs font-black uppercase tracking-wider text-[#d4b26f] flex items-center gap-1.5">
+              <Edit3 className="w-3.5 h-3.5" />
+              Edit Exercise Details
+            </span>
+            <button
+              type="button"
+              onClick={() => setIsEditingDetails(false)}
+              className="p-1 text-zinc-400 hover:text-white"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+
+          {/* Exercise Name */}
           <div>
-            <label className="text-xs font-bold uppercase text-zinc-400">Exercise Name</label>
+            <label className="text-[11px] font-black uppercase tracking-wider text-zinc-300">
+              Exercise Name
+            </label>
             <input
               type="text"
               value={editName}
               onChange={(e) => setEditName(e.target.value)}
-              className="mt-1 w-full rounded-lg border border-white/10 bg-zinc-950 px-3 py-2 text-sm font-bold text-white focus:border-[#d4b26f] focus:outline-none"
+              placeholder="e.g. Jump Rope, Shadowboxing, Abs..."
+              className="mt-1 w-full rounded-xl border border-white/15 bg-zinc-950 px-3 py-2 text-sm font-bold text-white focus:border-[#d4b26f] focus:outline-none"
             />
           </div>
 
+          {/* Category Dropdown */}
           <div>
-            <label className="text-xs font-bold uppercase text-[#d4b26f]">
+            <label className="text-[11px] font-black uppercase tracking-wider text-zinc-300">
+              Category
+            </label>
+            <select
+              value={editCategory}
+              onChange={(e) => setEditCategory(e.target.value as BoxingDrill['category'])}
+              className="mt-1 w-full rounded-xl border border-white/15 bg-zinc-950 px-3 py-2 text-xs sm:text-sm font-bold text-white focus:border-[#d4b26f] focus:outline-none cursor-pointer"
+            >
+              {Object.entries(CATEGORY_LABELS).map(([catKey, catLabel]) => (
+                <option key={catKey} value={catKey} className="bg-zinc-900 text-white">
+                  {catLabel}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Rounds / Sets Count & Duration Grid */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+            {/* Total Rounds / Sets */}
+            <div className="rounded-xl border border-white/10 bg-zinc-950/70 p-2.5">
+              <label className="text-[10px] font-black uppercase tracking-wider text-[#eed891] block mb-1">
+                Total {hasReps || editTrackingMode === 'weight' ? 'Sets' : 'Rounds'}
+              </label>
+              <div className="flex items-center justify-between gap-1">
+                <button
+                  type="button"
+                  onClick={() => setEditRoundsCount(Math.max(1, editRoundsCount - 1))}
+                  className="flex h-8 w-8 items-center justify-center rounded-lg bg-zinc-800 text-white hover:bg-zinc-700 active:scale-95 transition"
+                >
+                  <Minus className="w-3.5 h-3.5" />
+                </button>
+                <span className="font-mono text-base font-black text-white">
+                  {editRoundsCount}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setEditRoundsCount(Math.min(30, editRoundsCount + 1))}
+                  className="flex h-8 w-8 items-center justify-center rounded-lg bg-zinc-800 text-white hover:bg-zinc-700 active:scale-95 transition"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            </div>
+
+            {/* Work Duration (Time or Weight+Time) */}
+            <div className="rounded-xl border border-white/10 bg-zinc-950/70 p-2.5">
+              <label className="text-[10px] font-black uppercase tracking-wider text-zinc-300 block mb-1">
+                Work Time
+              </label>
+              <div className="flex items-center justify-between gap-1">
+                <button
+                  type="button"
+                  onClick={() => setEditRoundSecs(Math.max(10, editRoundSecs - 15))}
+                  className="flex h-8 w-8 items-center justify-center rounded-lg bg-zinc-800 text-white hover:bg-zinc-700 active:scale-95 transition"
+                >
+                  <Minus className="w-3.5 h-3.5" />
+                </button>
+                <span className="font-mono text-base font-black text-white">
+                  {formatTime(editRoundSecs)}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setEditRoundSecs(editRoundSecs + 15)}
+                  className="flex h-8 w-8 items-center justify-center rounded-lg bg-zinc-800 text-white hover:bg-zinc-700 active:scale-95 transition"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                </button>
+              </div>
+              <div className="flex gap-1 mt-1.5 justify-center">
+                {[60, 90, 120, 180].map((sec) => (
+                  <button
+                    key={sec}
+                    type="button"
+                    onClick={() => setEditRoundSecs(sec)}
+                    className={`px-1.5 py-0.5 rounded text-[10px] font-mono font-bold ${
+                      editRoundSecs === sec
+                        ? 'bg-[#d4b26f] text-black'
+                        : 'bg-zinc-800 text-zinc-300 hover:text-white'
+                    }`}
+                  >
+                    {formatTime(sec)}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Rest Duration */}
+            <div className="rounded-xl border border-white/10 bg-zinc-950/70 p-2.5">
+              <label className="text-[10px] font-black uppercase tracking-wider text-zinc-300 block mb-1">
+                Rest Time
+              </label>
+              <div className="flex items-center justify-between gap-1">
+                <button
+                  type="button"
+                  onClick={() => setEditRestSecs(Math.max(5, editRestSecs - 5))}
+                  className="flex h-8 w-8 items-center justify-center rounded-lg bg-zinc-800 text-white hover:bg-zinc-700 active:scale-95 transition"
+                >
+                  <Minus className="w-3.5 h-3.5" />
+                </button>
+                <span className="font-mono text-base font-black text-[#eed891]">
+                  {editRestSecs}s
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setEditRestSecs(editRestSecs + 5)}
+                  className="flex h-8 w-8 items-center justify-center rounded-lg bg-zinc-800 text-white hover:bg-zinc-700 active:scale-95 transition"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                </button>
+              </div>
+              <div className="flex gap-1 mt-1.5 justify-center">
+                {[15, 30, 45, 60].map((sec) => (
+                  <button
+                    key={sec}
+                    type="button"
+                    onClick={() => setEditRestSecs(sec)}
+                    className={`px-1.5 py-0.5 rounded text-[10px] font-mono font-bold ${
+                      editRestSecs === sec
+                        ? 'bg-[#d4b26f] text-black'
+                        : 'bg-zinc-800 text-zinc-300 hover:text-white'
+                    }`}
+                  >
+                    {sec}s
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* Tracking Mode */}
+          <div>
+            <label className="text-[11px] font-black uppercase tracking-wider text-[#d4b26f]">
               Tracking & Counting Mode
             </label>
             <div className="mt-1 grid grid-cols-2 sm:grid-cols-3 gap-1.5">
@@ -1078,10 +1343,10 @@ export const BoxingDrillCard: React.FC<BoxingDrillCardProps> = ({
                   key={t.id}
                   type="button"
                   onClick={() => setEditTrackingMode(t.id)}
-                  className={`flex items-center gap-1.5 rounded-lg border px-2 py-1.5 text-xs font-bold transition cursor-pointer ${
+                  className={`flex items-center gap-1.5 rounded-xl border px-2.5 py-2 text-xs font-bold transition cursor-pointer ${
                     editTrackingMode === t.id
-                      ? 'border-[#d4b26f] bg-[#d4b26f] text-black'
-                      : 'border-white/10 bg-zinc-950 text-zinc-300'
+                      ? 'border-[#d4b26f] bg-[#d4b26f] text-black font-black'
+                      : 'border-white/10 bg-zinc-950 text-zinc-300 hover:border-white/20'
                   }`}
                 >
                   <t.icon className="w-3.5 h-3.5" />
@@ -1093,14 +1358,16 @@ export const BoxingDrillCard: React.FC<BoxingDrillCardProps> = ({
 
           {(editTrackingMode === 'reps' || editTrackingMode === 'weight_reps') && (
             <div>
-              <label className="text-xs font-bold uppercase text-zinc-400">Target Reps</label>
+              <label className="text-[11px] font-black uppercase tracking-wider text-zinc-300">
+                Target Reps
+              </label>
               <input
                 type="number"
                 min={1}
                 max={500}
                 value={editDefaultReps}
                 onChange={(e) => setEditDefaultReps(parseInt(e.target.value) || 15)}
-                className="mt-1 w-full rounded-lg border border-white/10 bg-zinc-950 px-3 py-2 text-sm font-mono font-bold text-white focus:border-[#d4b26f] focus:outline-none"
+                className="mt-1 w-full rounded-xl border border-white/15 bg-zinc-950 px-3 py-2 text-sm font-mono font-bold text-white focus:border-[#d4b26f] focus:outline-none"
               />
             </div>
           )}
@@ -1109,7 +1376,7 @@ export const BoxingDrillCard: React.FC<BoxingDrillCardProps> = ({
             editTrackingMode === 'weight_reps' ||
             editTrackingMode === 'weight_time') && (
             <div>
-              <label className="text-xs font-bold uppercase text-zinc-400">
+              <label className="text-[11px] font-black uppercase tracking-wider text-zinc-300">
                 Target Weight ({weightUnit})
               </label>
               <input
@@ -1119,49 +1386,51 @@ export const BoxingDrillCard: React.FC<BoxingDrillCardProps> = ({
                 step={0.5}
                 value={editDefaultWeight}
                 onChange={(e) => setEditDefaultWeight(parseFloat(e.target.value) || 0)}
-                className="mt-1 w-full rounded-lg border border-white/10 bg-zinc-950 px-3 py-2 text-sm font-mono font-bold text-white focus:border-[#d4b26f] focus:outline-none"
+                className="mt-1 w-full rounded-xl border border-white/15 bg-zinc-950 px-3 py-2 text-sm font-mono font-bold text-white focus:border-[#d4b26f] focus:outline-none"
               />
             </div>
           )}
 
           <div>
-            <label className="text-xs font-bold uppercase text-[#d4b26f]">
-              Combinations / Cues (e.g. 3 Sets · 15 Reps or 1-2-Slip-2)
+            <label className="text-[11px] font-black uppercase tracking-wider text-[#d4b26f]">
+              Combinations / Cues (e.g. 1-2-Slip-2 or 3 Sets · 15 Reps)
             </label>
             <textarea
               value={editCombo}
               onChange={(e) => setEditCombo(e.target.value)}
               rows={2}
-              placeholder="e.g. 3 Sets · 15 Reps or 1-2-3-2"
-              className="mt-1 w-full rounded-lg border border-white/10 bg-zinc-950 p-2.5 text-sm font-mono text-white focus:border-[#d4b26f] focus:outline-none"
+              placeholder="e.g. 1-2-3-2 or Focus on breathing and relaxed shoulders"
+              className="mt-1 w-full rounded-xl border border-white/15 bg-zinc-950 p-2.5 text-xs sm:text-sm font-mono text-white focus:border-[#d4b26f] focus:outline-none"
             />
           </div>
 
           <div>
-            <label className="text-xs font-bold uppercase text-zinc-400">Technical Notes</label>
+            <label className="text-[11px] font-black uppercase tracking-wider text-zinc-300">
+              Technical Form Notes
+            </label>
             <input
               type="text"
               value={editNotes}
               onChange={(e) => setEditNotes(e.target.value)}
-              placeholder="e.g. Curl ribs toward pelvis slowly"
-              className="mt-1 w-full rounded-lg border border-white/10 bg-zinc-950 px-3 py-2 text-sm text-white focus:border-[#d4b26f] focus:outline-none"
+              placeholder="e.g. Stay light on toes, keep guard up"
+              className="mt-1 w-full rounded-xl border border-white/15 bg-zinc-950 px-3 py-2 text-xs sm:text-sm text-white focus:border-[#d4b26f] focus:outline-none"
             />
           </div>
 
-          <div className="flex justify-end gap-2 pt-1">
+          <div className="flex justify-end gap-2 pt-2 border-t border-white/10">
             <button
               type="button"
               onClick={() => setIsEditingDetails(false)}
-              className="px-3 py-1.5 text-xs sm:text-sm text-zinc-400 hover:text-white cursor-pointer"
+              className="px-3.5 py-2 text-xs sm:text-sm font-bold text-zinc-400 hover:text-white cursor-pointer"
             >
               Cancel
             </button>
             <button
               type="button"
               onClick={handleSaveEditedDetails}
-              className="rounded-lg bg-[#d4b26f] px-4 py-1.5 text-xs sm:text-sm font-black uppercase text-black cursor-pointer"
+              className="rounded-xl bg-[#d4b26f] hover:bg-[#e2c487] px-5 py-2 text-xs sm:text-sm font-black uppercase tracking-wide text-black cursor-pointer shadow-md active:scale-95 transition"
             >
-              Save
+              Save Exercise
             </button>
           </div>
         </div>
@@ -1179,261 +1448,459 @@ export const BoxingDrillCard: React.FC<BoxingDrillCardProps> = ({
               return (
                 <div
                   key={r.id}
-                  className={`flex items-center justify-between gap-2 rounded-xl border px-3 py-2 transition ${
-                    r.completed
+                  className={`overflow-hidden rounded-xl border p-2.5 transition ${
+                    editingRoundId === r.id
+                      ? 'border-[#d4b26f] bg-[#161622] shadow-xl ring-1 ring-[#d4b26f]/30'
+                      : r.completed
                       ? 'border-[#d4b26f]/35 bg-[#d4b26f]/10'
                       : isRoundActive
                       ? 'border-[#d4b26f] bg-[#191924]'
                       : 'border-white/[0.07] bg-[#15151d]'
                   }`}
                 >
-                  {/* Left: Badge & Metric Steppers */}
-                  <div className="flex items-center gap-2.5 min-w-0 flex-1">
-                    <span
-                      className={`flex h-7 w-8 shrink-0 items-center justify-center rounded-lg font-mono text-xs font-black ${
-                        r.completed
-                          ? 'bg-[#d4b26f] text-black'
-                          : isRoundActive
-                          ? 'bg-[#d4b26f]/25 text-[#eed891] border border-[#d4b26f]'
-                          : 'bg-[#0e0e14] text-zinc-300 border border-white/10'
-                      }`}
-                    >
-                      {hasReps || trackingMode === 'weight' ? `S${r.roundNumber}` : `R${r.roundNumber}`}
-                    </span>
+                  {/* Top Header of the Round: Badge, Timing / Steppers, and Actions */}
+                  <div className="flex items-center justify-between gap-2">
+                    {/* Left: Badge & Metric Steppers */}
+                    <div className="flex items-center gap-2 min-w-0 flex-1 flex-wrap">
+                      <span
+                        className={`flex h-7 w-8 shrink-0 items-center justify-center rounded-lg font-mono text-xs font-black ${
+                          r.completed
+                            ? 'bg-[#d4b26f] text-black'
+                            : isRoundActive
+                            ? 'bg-[#d4b26f]/25 text-[#eed891] border border-[#d4b26f]'
+                            : 'bg-[#0e0e14] text-zinc-300 border border-white/10'
+                        }`}
+                      >
+                        {hasReps || trackingMode === 'weight' ? `S${r.roundNumber}` : `R${r.roundNumber}`}
+                      </span>
 
-                    {/* Mode: REPS ONLY */}
-                    {trackingMode === 'reps' && (
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <div className="flex items-center rounded-xl border border-white/10 bg-[#0e0e14] p-0.5">
-                          <button
-                            type="button"
-                            onClick={() => handleAdjustRoundReps(r.id, -1)}
-                            className="flex h-7 w-7 items-center justify-center rounded-lg text-zinc-400 hover:text-white hover:bg-zinc-800 active:scale-90 transition cursor-pointer"
-                            title="-1 Rep"
-                          >
-                            <Minus className="w-3 h-3 stroke-[3]" />
-                          </button>
-                          <div className="flex items-center px-2 font-mono text-xs sm:text-sm font-black text-white min-w-[60px] justify-center">
-                            {r.reps ?? drill.defaultReps ?? 15}{' '}
-                            <span className="text-[10px] font-bold text-zinc-400 ml-1">reps</span>
-                          </div>
-                          <button
-                            type="button"
-                            onClick={() => handleAdjustRoundReps(r.id, 1)}
-                            className="flex h-7 w-7 items-center justify-center rounded-lg text-zinc-400 hover:text-white hover:bg-zinc-800 active:scale-90 transition cursor-pointer"
-                            title="+1 Rep"
-                          >
-                            <Plus className="w-3 h-3 stroke-[3]" />
-                          </button>
-                        </div>
-                        <span className="text-[10px] font-mono text-zinc-400 hidden xs:inline">
-                          Rest {r.restSeconds}s
-                        </span>
-                      </div>
-                    )}
-
-                    {/* Mode: WEIGHT & REPS */}
-                    {trackingMode === 'weight_reps' && (
-                      <div className="flex items-center gap-1.5 flex-wrap">
-                        {/* Weight Stepper */}
-                        <div className="flex items-center rounded-xl border border-white/10 bg-[#0e0e14] p-0.5">
-                          <button
-                            type="button"
-                            onClick={() => handleAdjustRoundWeight(r.id, -2.5)}
-                            className="flex h-7 w-6 items-center justify-center rounded-lg text-zinc-400 hover:text-white hover:bg-zinc-800 active:scale-90 transition cursor-pointer"
-                            title="-2.5 kg"
-                          >
-                            <Minus className="w-2.5 h-2.5 stroke-[3]" />
-                          </button>
-                          <div className="flex items-center px-1.5 font-mono text-xs sm:text-sm font-black text-[#eed891] min-w-[48px] justify-center">
-                            {r.weight ?? drill.defaultWeight ?? 10}
-                            <span className="text-[9px] text-zinc-400 ml-0.5">{weightUnit}</span>
-                          </div>
-                          <button
-                            type="button"
-                            onClick={() => handleAdjustRoundWeight(r.id, 2.5)}
-                            className="flex h-7 w-6 items-center justify-center rounded-lg text-zinc-400 hover:text-white hover:bg-zinc-800 active:scale-90 transition cursor-pointer"
-                            title="+2.5 kg"
-                          >
-                            <Plus className="w-2.5 h-2.5 stroke-[3]" />
-                          </button>
-                        </div>
-
-                        {/* Reps Stepper */}
-                        <div className="flex items-center rounded-xl border border-white/10 bg-[#0e0e14] p-0.5">
-                          <button
-                            type="button"
-                            onClick={() => handleAdjustRoundReps(r.id, -1)}
-                            className="flex h-7 w-6 items-center justify-center rounded-lg text-zinc-400 hover:text-white hover:bg-zinc-800 active:scale-90 transition cursor-pointer"
-                            title="-1 Rep"
-                          >
-                            <Minus className="w-2.5 h-2.5 stroke-[3]" />
-                          </button>
-                          <div className="flex items-center px-1.5 font-mono text-xs sm:text-sm font-black text-white min-w-[48px] justify-center">
-                            {r.reps ?? drill.defaultReps ?? 20}
-                            <span className="text-[9px] text-zinc-400 ml-0.5">reps</span>
-                          </div>
-                          <button
-                            type="button"
-                            onClick={() => handleAdjustRoundReps(r.id, 1)}
-                            className="flex h-7 w-6 items-center justify-center rounded-lg text-zinc-400 hover:text-white hover:bg-zinc-800 active:scale-90 transition cursor-pointer"
-                            title="+1 Rep"
-                          >
-                            <Plus className="w-2.5 h-2.5 stroke-[3]" />
-                          </button>
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Mode: WEIGHT ONLY */}
-                    {trackingMode === 'weight' && (
-                      <div className="flex items-center gap-2">
-                        <div className="flex items-center rounded-xl border border-white/10 bg-[#0e0e14] p-0.5">
-                          <button
-                            type="button"
-                            onClick={() => handleAdjustRoundWeight(r.id, -2.5)}
-                            className="flex h-7 w-7 items-center justify-center rounded-lg text-zinc-400 hover:text-white hover:bg-zinc-800 active:scale-90 transition cursor-pointer"
-                            title="-2.5 kg"
-                          >
-                            <Minus className="w-3 h-3 stroke-[3]" />
-                          </button>
-                          <div className="flex items-center px-2 font-mono text-xs sm:text-sm font-black text-[#eed891] min-w-[56px] justify-center">
-                            {r.weight ?? drill.defaultWeight ?? 20}{' '}
-                            <span className="text-[10px] text-zinc-400 ml-1">{weightUnit}</span>
-                          </div>
-                          <button
-                            type="button"
-                            onClick={() => handleAdjustRoundWeight(r.id, 2.5)}
-                            className="flex h-7 w-7 items-center justify-center rounded-lg text-zinc-400 hover:text-white hover:bg-zinc-800 active:scale-90 transition cursor-pointer"
-                            title="+2.5 kg"
-                          >
-                            <Plus className="w-3 h-3 stroke-[3]" />
-                          </button>
-                        </div>
-                        <span className="text-[10px] font-mono text-zinc-400 hidden xs:inline">
-                          Rest {r.restSeconds}s
-                        </span>
-                      </div>
-                    )}
-
-                    {/* Mode: WEIGHT & TIME */}
-                    {trackingMode === 'weight_time' && (
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <div className="flex items-center rounded-xl border border-white/10 bg-[#0e0e14] p-0.5">
-                          <button
-                            type="button"
-                            onClick={() => handleAdjustRoundWeight(r.id, -2.5)}
-                            className="flex h-7 w-6 items-center justify-center rounded-lg text-zinc-400 hover:text-white hover:bg-zinc-800 active:scale-90 transition cursor-pointer"
-                          >
-                            <Minus className="w-2.5 h-2.5 stroke-[3]" />
-                          </button>
-                          <div className="flex items-center px-1.5 font-mono text-xs font-black text-[#eed891] min-w-[48px] justify-center">
-                            {r.weight ?? drill.defaultWeight ?? 10}{' '}
-                            <span className="text-[9px] text-zinc-400 ml-0.5">{weightUnit}</span>
-                          </div>
-                          <button
-                            type="button"
-                            onClick={() => handleAdjustRoundWeight(r.id, 2.5)}
-                            className="flex h-7 w-6 items-center justify-center rounded-lg text-zinc-400 hover:text-white hover:bg-zinc-800 active:scale-90 transition cursor-pointer"
-                          >
-                            <Plus className="w-2.5 h-2.5 stroke-[3]" />
-                          </button>
-                        </div>
-                        <div className="font-mono text-xs font-bold text-zinc-100">
-                          {formatTime(r.durationSeconds)} Work
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Mode: TIME ONLY */}
-                    {trackingMode === 'time' && (
-                      <div className="min-w-0 flex-1">
+                      {/* Mode: TIME ONLY */}
+                      {trackingMode === 'time' && (
                         <div className="flex items-center gap-1.5 font-mono text-xs font-bold text-zinc-100 flex-wrap">
-                          <span>
-                            {formatTime(r.durationSeconds)} Work
-                          </span>
+                          <span>{formatTime(r.durationSeconds)} Work</span>
                           <span className="text-zinc-600">·</span>
                           <span className="text-[#eed891]">{r.restSeconds}s Rest</span>
                         </div>
-                        {r.focusCombo && (
-                          <p className="text-xs text-zinc-300 mt-1 font-medium leading-relaxed">
-                            {r.focusCombo}
-                          </p>
-                        )}
-                        {isRoundActive && liveTimerState && (
-                          <div
-                            className={`font-mono text-[11px] font-black uppercase mt-1 ${
-                              liveTimerState.phase === 'rest'
-                                ? 'text-emerald-400'
-                                : 'text-[#d4b26f]'
-                            }`}
-                          >
-                            {liveTimerState.phase === 'rest' ? 'Corner Rest: ' : 'Live Round: '}
-                            {formatTime(liveTimerState.secondsLeft)}
-                          </div>
-                        )}
-                      </div>
-                    )}
-                  </div>
+                      )}
 
-                  {/* Right: Round Timer or Rest Button + Done Button */}
-                  <div className="flex items-center gap-1.5 shrink-0">
-                    {hasTime ? (
+                      {/* Mode: REPS ONLY */}
+                      {trackingMode === 'reps' && (
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <div className="flex items-center rounded-xl border border-white/10 bg-[#0e0e14] p-0.5">
+                            <button
+                              type="button"
+                              onClick={() => handleAdjustRoundReps(r.id, -1)}
+                              className="flex h-7 w-7 items-center justify-center rounded-lg text-zinc-400 hover:text-white hover:bg-zinc-800 active:scale-90 transition cursor-pointer"
+                              title="-1 Rep"
+                            >
+                              <Minus className="w-3 h-3 stroke-[3]" />
+                            </button>
+                            <div className="flex items-center px-2 font-mono text-xs sm:text-sm font-black text-white min-w-[60px] justify-center">
+                              {r.reps ?? drill.defaultReps ?? 15}{' '}
+                              <span className="text-[10px] font-bold text-zinc-400 ml-1">reps</span>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => handleAdjustRoundReps(r.id, 1)}
+                              className="flex h-7 w-7 items-center justify-center rounded-lg text-zinc-400 hover:text-white hover:bg-zinc-800 active:scale-90 transition cursor-pointer"
+                              title="+1 Rep"
+                            >
+                              <Plus className="w-3 h-3 stroke-[3]" />
+                            </button>
+                          </div>
+                          <span className="text-[10px] font-mono text-zinc-400 hidden xs:inline">
+                            Rest {r.restSeconds}s
+                          </span>
+                        </div>
+                      )}
+
+                      {/* Mode: WEIGHT & REPS */}
+                      {trackingMode === 'weight_reps' && (
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          {/* Weight Stepper */}
+                          <div className="flex items-center rounded-xl border border-white/10 bg-[#0e0e14] p-0.5">
+                            <button
+                              type="button"
+                              onClick={() => handleAdjustRoundWeight(r.id, -2.5)}
+                              className="flex h-7 w-6 items-center justify-center rounded-lg text-zinc-400 hover:text-white hover:bg-zinc-800 active:scale-90 transition cursor-pointer"
+                              title="-2.5 kg"
+                            >
+                              <Minus className="w-2.5 h-2.5 stroke-[3]" />
+                            </button>
+                            <div className="flex items-center px-1.5 font-mono text-xs sm:text-sm font-black text-[#eed891] min-w-[48px] justify-center">
+                              {r.weight ?? drill.defaultWeight ?? 10}
+                              <span className="text-[9px] text-zinc-400 ml-0.5">{weightUnit}</span>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => handleAdjustRoundWeight(r.id, 2.5)}
+                              className="flex h-7 w-6 items-center justify-center rounded-lg text-zinc-400 hover:text-white hover:bg-zinc-800 active:scale-90 transition cursor-pointer"
+                              title="+2.5 kg"
+                            >
+                              <Plus className="w-2.5 h-2.5 stroke-[3]" />
+                            </button>
+                          </div>
+
+                          {/* Reps Stepper */}
+                          <div className="flex items-center rounded-xl border border-white/10 bg-[#0e0e14] p-0.5">
+                            <button
+                              type="button"
+                              onClick={() => handleAdjustRoundReps(r.id, -1)}
+                              className="flex h-7 w-6 items-center justify-center rounded-lg text-zinc-400 hover:text-white hover:bg-zinc-800 active:scale-90 transition cursor-pointer"
+                              title="-1 Rep"
+                            >
+                              <Minus className="w-2.5 h-2.5 stroke-[3]" />
+                            </button>
+                            <div className="flex items-center px-1.5 font-mono text-xs sm:text-sm font-black text-white min-w-[48px] justify-center">
+                              {r.reps ?? drill.defaultReps ?? 20}
+                              <span className="text-[9px] text-zinc-400 ml-0.5">reps</span>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => handleAdjustRoundReps(r.id, 1)}
+                              className="flex h-7 w-6 items-center justify-center rounded-lg text-zinc-400 hover:text-white hover:bg-zinc-800 active:scale-90 transition cursor-pointer"
+                              title="+1 Rep"
+                            >
+                              <Plus className="w-2.5 h-2.5 stroke-[3]" />
+                            </button>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Mode: WEIGHT ONLY */}
+                      {trackingMode === 'weight' && (
+                        <div className="flex items-center gap-2">
+                          <div className="flex items-center rounded-xl border border-white/10 bg-[#0e0e14] p-0.5">
+                            <button
+                              type="button"
+                              onClick={() => handleAdjustRoundWeight(r.id, -2.5)}
+                              className="flex h-7 w-7 items-center justify-center rounded-lg text-zinc-400 hover:text-white hover:bg-zinc-800 active:scale-90 transition cursor-pointer"
+                              title="-2.5 kg"
+                            >
+                              <Minus className="w-3 h-3 stroke-[3]" />
+                            </button>
+                            <div className="flex items-center px-2 font-mono text-xs sm:text-sm font-black text-[#eed891] min-w-[56px] justify-center">
+                              {r.weight ?? drill.defaultWeight ?? 20}{' '}
+                              <span className="text-[10px] text-zinc-400 ml-1">{weightUnit}</span>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => handleAdjustRoundWeight(r.id, 2.5)}
+                              className="flex h-7 w-7 items-center justify-center rounded-lg text-zinc-400 hover:text-white hover:bg-zinc-800 active:scale-90 transition cursor-pointer"
+                              title="+2.5 kg"
+                            >
+                              <Plus className="w-3 h-3 stroke-[3]" />
+                            </button>
+                          </div>
+                          <span className="text-[10px] font-mono text-zinc-400 hidden xs:inline">
+                            Rest {r.restSeconds}s
+                          </span>
+                        </div>
+                      )}
+
+                      {/* Mode: WEIGHT & TIME */}
+                      {trackingMode === 'weight_time' && (
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <div className="flex items-center rounded-xl border border-white/10 bg-[#0e0e14] p-0.5">
+                            <button
+                              type="button"
+                              onClick={() => handleAdjustRoundWeight(r.id, -2.5)}
+                              className="flex h-7 w-6 items-center justify-center rounded-lg text-zinc-400 hover:text-white hover:bg-zinc-800 active:scale-90 transition cursor-pointer"
+                            >
+                              <Minus className="w-2.5 h-2.5 stroke-[3]" />
+                            </button>
+                            <div className="flex items-center px-1.5 font-mono text-xs font-black text-[#eed891] min-w-[48px] justify-center">
+                              {r.weight ?? drill.defaultWeight ?? 10}{' '}
+                              <span className="text-[9px] text-zinc-400 ml-0.5">{weightUnit}</span>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => handleAdjustRoundWeight(r.id, 2.5)}
+                              className="flex h-7 w-6 items-center justify-center rounded-lg text-zinc-400 hover:text-white hover:bg-zinc-800 active:scale-90 transition cursor-pointer"
+                            >
+                              <Plus className="w-2.5 h-2.5 stroke-[3]" />
+                            </button>
+                          </div>
+                          <div className="font-mono text-xs font-bold text-zinc-100">
+                            {formatTime(r.durationSeconds)} Work
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Right: Dedicated Round Edit Button + Timer/Rest + Done */}
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      {/* Individual Round Edit Pencil Button */}
                       <button
                         type="button"
                         onClick={() => {
-                          if (isRoundActive) {
-                            onTimerCommand?.('togglePlay');
+                          if (editingRoundId === r.id) {
+                            handleCancelEditRound();
                           } else {
-                            onStartDrillTimer(drill, r.roundNumber, 'work');
+                            handleStartEditRound(r);
                           }
                         }}
-                        className={`flex h-8 items-center gap-1 rounded-xl border px-2.5 text-xs font-bold transition active:scale-95 cursor-pointer ${
-                          isRoundActive
-                            ? 'border-[#d4b26f] bg-[#d4b26f]/20 text-[#eed891]'
-                            : 'border-white/10 bg-[#0e0e14] text-zinc-300 hover:border-[#d4b26f]/40 hover:text-white'
+                        className={`flex h-8 items-center gap-1 rounded-xl border px-2 text-xs font-bold transition active:scale-95 cursor-pointer ${
+                          editingRoundId === r.id
+                            ? 'border-[#d4b26f] bg-[#d4b26f] text-black font-black'
+                            : 'border-white/10 bg-[#0e0e14] text-zinc-300 hover:border-[#d4b26f]/40 hover:text-[#eed891]'
                         }`}
-                        title={`Start timer for Round ${r.roundNumber}`}
+                        title={`Edit Round ${r.roundNumber} combinations, notes, and timings independently`}
                       >
-                        {isRoundActive && liveTimerState?.isRunning ? (
-                          <>
-                            <Pause className="w-3 h-3 text-[#d4b26f]" />
-                            <span className="font-mono">
-                              {formatTime(liveTimerState.secondsLeft)}
-                            </span>
-                          </>
-                        ) : (
-                          <>
-                            <Play className="w-3 h-3 text-[#d4b26f] fill-[#d4b26f]" />
-                            <span>Time</span>
-                          </>
-                        )}
+                        <Pencil className="w-3.5 h-3.5 text-[#d4b26f]" />
+                        <span className="font-bold">Edit R{r.roundNumber}</span>
                       </button>
-                    ) : (
+
+                      {hasTime ? (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (isRoundActive) {
+                              onTimerCommand?.('togglePlay');
+                            } else {
+                              onStartDrillTimer(drill, r.roundNumber, 'work');
+                            }
+                          }}
+                          className={`flex h-8 items-center gap-1 rounded-xl border px-2.5 text-xs font-bold transition active:scale-95 cursor-pointer ${
+                            isRoundActive
+                              ? 'border-[#d4b26f] bg-[#d4b26f]/20 text-[#eed891]'
+                              : 'border-white/10 bg-[#0e0e14] text-zinc-300 hover:border-[#d4b26f]/40 hover:text-white'
+                          }`}
+                          title={`Start timer for Round ${r.roundNumber}`}
+                        >
+                          {isRoundActive && liveTimerState?.isRunning ? (
+                            <>
+                              <Pause className="w-3 h-3 text-[#d4b26f]" />
+                              <span className="font-mono">
+                                {formatTime(liveTimerState.secondsLeft)}
+                              </span>
+                            </>
+                          ) : (
+                            <>
+                              <Play className="w-3 h-3 text-[#d4b26f] fill-[#d4b26f]" />
+                              <span>Time</span>
+                            </>
+                          )}
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => onStartDrillTimer(drill, r.roundNumber, 'rest')}
+                          className="flex h-8 items-center gap-1 rounded-xl border border-white/10 bg-[#0e0e14] px-2 text-xs font-bold text-zinc-300 hover:border-[#d4b26f]/40 hover:text-white active:scale-95 transition cursor-pointer"
+                          title="Start optional corner rest timer"
+                        >
+                          <Bell className="w-3 h-3 text-[#d4b26f]" />
+                          <span className="hidden xs:inline">Rest</span>
+                        </button>
+                      )}
+
                       <button
                         type="button"
-                        onClick={() => onStartDrillTimer(drill, r.roundNumber, 'rest')}
-                        className="flex h-8 items-center gap-1 rounded-xl border border-white/10 bg-[#0e0e14] px-2 text-xs font-bold text-zinc-300 hover:border-[#d4b26f]/40 hover:text-white active:scale-95 transition cursor-pointer"
-                        title="Start optional corner rest timer"
+                        onClick={() => handleToggleRound(r.id)}
+                        className={`flex h-8 items-center gap-1 rounded-xl border px-2.5 text-xs font-black uppercase transition active:scale-95 cursor-pointer ${
+                          r.completed
+                            ? 'border-[#d4b26f] bg-[#d4b26f] text-black shadow-sm'
+                            : 'border-white/10 bg-[#1c1c26] text-zinc-200 hover:border-[#d4b26f]/40 hover:text-white'
+                        }`}
                       >
-                        <Bell className="w-3 h-3 text-[#d4b26f]" />
-                        <span className="hidden xs:inline">Rest</span>
+                        <Check className="w-3.5 h-3.5 stroke-[3]" />
+                        <span>Done</span>
                       </button>
-                    )}
-
-                    <button
-                      type="button"
-                      onClick={() => handleToggleRound(r.id)}
-                      className={`flex h-8 items-center gap-1 rounded-xl border px-2.5 text-xs font-black uppercase transition active:scale-95 cursor-pointer ${
-                        r.completed
-                          ? 'border-[#d4b26f] bg-[#d4b26f] text-black shadow-sm'
-                          : 'border-white/10 bg-[#1c1c26] text-zinc-200 hover:border-[#d4b26f]/40 hover:text-white'
-                      }`}
-                    >
-                      <Check className="w-3.5 h-3.5 stroke-[3]" />
-                      <span>Done</span>
-                    </button>
+                    </div>
                   </div>
+
+                  {/* Normal View: Focus Combination & Specific Round Note */}
+                  {editingRoundId !== r.id && (
+                    <div className="mt-2 space-y-2">
+                      {/* Round Combination with LARGE HIGH-CONTRAST FONT */}
+                      {r.focusCombo ? (
+                        <div
+                          onClick={() => handleStartEditRound(r)}
+                          className="rounded-xl border-2 border-[#d4b26f]/40 bg-black/75 p-2.5 sm:p-3 hover:border-[#d4b26f] cursor-pointer transition group shadow-md"
+                          title="Tap to edit this round's combination or notes"
+                        >
+                          <div className="flex items-center justify-between gap-1 mb-1">
+                            <span className="font-black uppercase tracking-wider text-xs sm:text-sm text-[#eed891] flex items-center gap-1.5">
+                              <span>🥊</span>
+                              <span>R{r.roundNumber} Combo:</span>
+                            </span>
+                            <span className="flex items-center gap-1 text-[11px] font-bold text-zinc-400 group-hover:text-[#eed891] bg-white/[0.05] border border-white/10 px-2 py-0.5 rounded-md">
+                              <Pencil className="w-2.5 h-2.5 text-[#d4b26f]" />
+                              <span>Edit</span>
+                            </span>
+                          </div>
+                          <div className="font-mono text-lg sm:text-xl md:text-2xl font-black text-amber-200 tracking-wide leading-relaxed break-words drop-shadow-sm">
+                            {r.focusCombo}
+                          </div>
+                        </div>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => handleStartEditRound(r)}
+                          className="flex w-full items-center justify-between gap-2 rounded-xl border border-dashed border-[#d4b26f]/30 bg-[#14141c]/60 hover:bg-[#14141c] hover:border-[#d4b26f]/70 px-3 py-2 text-xs font-bold text-zinc-300 hover:text-[#eed891] transition cursor-pointer group"
+                        >
+                          <span className="flex items-center gap-1.5">
+                            <Plus className="w-3.5 h-3.5 text-[#d4b26f]" />
+                            <span>+ Set R{r.roundNumber} Combo & Round Notes</span>
+                          </span>
+                          <span className="text-[10px] text-zinc-500 group-hover:text-zinc-300 font-mono">
+                            Tap to edit
+                          </span>
+                        </button>
+                      )}
+
+                      {/* Specific Round Note */}
+                      {r.notes && (
+                        <div
+                          onClick={() => handleStartEditRound(r)}
+                          className="flex items-start gap-2 rounded-xl border border-sky-500/30 bg-sky-950/40 p-2.5 text-xs sm:text-sm text-zinc-100 hover:border-sky-400 cursor-pointer transition group shadow-xs"
+                          title="Tap to edit this round's note"
+                        >
+                          <span className="font-black uppercase tracking-wider text-xs text-sky-300 shrink-0 mt-0.5">
+                            📝 R{r.roundNumber} Note:
+                          </span>
+                          <span className="text-xs sm:text-sm text-zinc-200 flex-1 leading-snug break-words font-medium">
+                            {r.notes}
+                          </span>
+                          <Pencil className="w-3 h-3 text-zinc-400 group-hover:text-sky-300 shrink-0 mt-0.5" />
+                        </div>
+                      )}
+
+
+                      {/* Active Round Timer Indicator */}
+                      {isRoundActive && liveTimerState && (
+                        <div
+                          className={`font-mono text-[11px] font-black uppercase pt-0.5 ${
+                            liveTimerState.phase === 'rest'
+                              ? 'text-emerald-400'
+                              : 'text-[#d4b26f]'
+                          }`}
+                        >
+                          {liveTimerState.phase === 'rest' ? 'Corner Rest: ' : 'Live Round: '}
+                          {formatTime(liveTimerState.secondsLeft)}
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Independent Round Editor View (When editingRoundId === r.id) */}
+                  {editingRoundId === r.id && (
+                    <div className="mt-2.5 rounded-xl border border-[#d4b26f]/50 bg-[#12121a] p-3 space-y-2.5 shadow-inner">
+                      <div className="flex items-center justify-between border-b border-white/10 pb-1.5">
+                        <span className="text-xs font-black uppercase tracking-wider text-[#eed891] flex items-center gap-1.5">
+                          <Edit3 className="w-3.5 h-3.5 text-[#d4b26f]" />
+                          Edit Round {r.roundNumber} (Alone)
+                        </span>
+                        <button
+                          type="button"
+                          onClick={handleCancelEditRound}
+                          className="p-1 text-zinc-400 hover:text-white cursor-pointer"
+                        >
+                          <X className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+
+                      {/* Specific Round Combination */}
+                      <div>
+                        <label className="text-[10px] font-black uppercase tracking-wider text-[#d4b26f] block mb-1">
+                          Round {r.roundNumber} Specific Combination / Focus
+                        </label>
+                        <textarea
+                          rows={2}
+                          value={roundComboText}
+                          onChange={(e) => setRoundComboText(e.target.value)}
+                          placeholder="e.g. 1-2, 1-1-2 Stiff jab and range finding • Exit at 45 degree angle"
+                          className="w-full rounded-xl border border-white/20 bg-zinc-950 p-2.5 text-sm sm:text-base font-mono font-bold text-amber-200 placeholder-zinc-500 focus:border-[#d4b26f] focus:outline-none"
+                          autoFocus
+                        />
+
+                      </div>
+
+                      {/* Specific Round Note */}
+                      <div>
+                        <label className="text-[10px] font-black uppercase tracking-wider text-sky-300 block mb-1">
+                          Round {r.roundNumber} Specific Technique Note / Cue
+                        </label>
+                        <input
+                          type="text"
+                          value={roundNotesText}
+                          onChange={(e) => setRoundNotesText(e.target.value)}
+                          placeholder="e.g. Keep right hand glued to chin, turn hips on hook, don't drop elbows"
+                          className="w-full rounded-xl border border-white/15 bg-zinc-950 px-2.5 py-1.5 text-xs text-white placeholder-zinc-500 focus:border-sky-400 focus:outline-none"
+                        />
+                      </div>
+
+                      {/* Specific Round Timing Adjustments */}
+                      <div className="grid grid-cols-2 gap-2 pt-0.5">
+                        <div className="rounded-xl border border-white/10 bg-zinc-950 p-2">
+                          <label className="text-[9px] font-black uppercase text-zinc-400 block mb-1">
+                            Round Work Duration
+                          </label>
+                          <div className="flex items-center justify-between">
+                            <button
+                              type="button"
+                              onClick={() => setRoundWorkSecs(Math.max(10, roundWorkSecs - 15))}
+                              className="h-7 w-7 rounded bg-zinc-800 hover:bg-zinc-700 text-white flex items-center justify-center cursor-pointer active:scale-90"
+                            >
+                              <Minus className="w-3 h-3" />
+                            </button>
+                            <span className="font-mono text-xs font-black text-white">
+                              {formatTime(roundWorkSecs)}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => setRoundWorkSecs(roundWorkSecs + 15)}
+                              className="h-7 w-7 rounded bg-zinc-800 hover:bg-zinc-700 text-white flex items-center justify-center cursor-pointer active:scale-90"
+                            >
+                              <Plus className="w-3 h-3" />
+                            </button>
+                          </div>
+                        </div>
+
+                        <div className="rounded-xl border border-white/10 bg-zinc-950 p-2">
+                          <label className="text-[9px] font-black uppercase text-zinc-400 block mb-1">
+                            Round Rest Duration
+                          </label>
+                          <div className="flex items-center justify-between">
+                            <button
+                              type="button"
+                              onClick={() => setRoundRestSecs(Math.max(5, roundRestSecs - 5))}
+                              className="h-7 w-7 rounded bg-zinc-800 hover:bg-zinc-700 text-white flex items-center justify-center cursor-pointer active:scale-90"
+                            >
+                              <Minus className="w-3 h-3" />
+                            </button>
+                            <span className="font-mono text-xs font-black text-[#eed891]">
+                              {roundRestSecs}s
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => setRoundRestSecs(roundRestSecs + 5)}
+                              className="h-7 w-7 rounded bg-zinc-800 hover:bg-zinc-700 text-white flex items-center justify-center cursor-pointer active:scale-90"
+                            >
+                              <Plus className="w-3 h-3" />
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="flex justify-end gap-2 pt-1 border-t border-white/10">
+                        <button
+                          type="button"
+                          onClick={handleCancelEditRound}
+                          className="px-3 py-1.5 text-xs text-zinc-400 hover:text-white cursor-pointer"
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleSaveRoundDetails(r.id)}
+                          className="rounded-lg bg-[#d4b26f] hover:bg-[#e2c487] px-4 py-1.5 text-xs font-black uppercase text-black cursor-pointer shadow-md active:scale-95 transition"
+                        >
+                          Save Round {r.roundNumber}
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </div>
               );
             })}

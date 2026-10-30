@@ -40,7 +40,9 @@ import {
   getTodayDateKey,
   downloadLogsAsMarkdown,
   downloadLogsAsJSON,
+  copyTextToClipboard,
 } from '@/lib/export-ai';
+
 import { soundManager } from '@/lib/sound';
 import { APP_THEMES } from '@/lib/themes';
 
@@ -260,117 +262,75 @@ export function GymApp() {
         }
       />
 
-      {/* Main View Area */}
+      {/* Main View Area - Persistent Tab Views (Never unmounted so active workouts, timers, and notes are 100% preserved) */}
       <main className="mx-auto w-full max-w-[430px] flex-1 px-3.5 pt-3.5">
-        <AnimatePresence mode="wait" initial={false}>
-          {activeTab === 'workouts' && (
-            <motion.div
-              key="workouts"
-              initial={false}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 0.12 }}
-            >
-              <WorkoutSystemView
-                systems={workoutSystems}
-                settings={settings}
-                workoutLogs={workoutLogs}
-                onUpdateSystems={handleUpdateWorkoutSystems}
-                onSaveSessionLog={handleSaveSessionLog}
-                onTriggerRestTimer={handleTriggerRestTimer}
-                onOpenTimer={isTimerEnabled ? handleOpenTimer : undefined}
-                onOpenAIExport={() => setIsAIModalOpen(true)}
-                onActiveSessionChange={setIsWorkoutActive}
-              />
-            </motion.div>
-          )}
+        <div className={activeTab === 'workouts' ? 'block' : 'hidden'}>
+          <WorkoutSystemView
+            systems={workoutSystems}
+            settings={settings}
+            workoutLogs={workoutLogs}
+            onUpdateSystems={handleUpdateWorkoutSystems}
+            onSaveSessionLog={handleSaveSessionLog}
+            onTriggerRestTimer={handleTriggerRestTimer}
+            onOpenTimer={isTimerEnabled ? handleOpenTimer : undefined}
+            onOpenAIExport={() => setIsAIModalOpen(true)}
+            onActiveSessionChange={setIsWorkoutActive}
+          />
+        </div>
 
-          {activeTab === 'boxing' && (
-            <motion.div
-              key="boxing"
-              initial={false}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 0.12 }}
-            >
-              <BoxingSystemView
-                workouts={boxingWorkouts}
-                boxingLogs={boxingLogs}
-                settings={settings}
-                onUpdateWorkouts={handleUpdateBoxingWorkouts}
-                onSaveBoxingLog={handleSaveBoxingLog}
-                onDeleteBoxingLog={handleDeleteBoxingLog}
-                onActiveSessionChange={setIsBoxingActive}
-              />
-            </motion.div>
-          )}
+        <div className={activeTab === 'boxing' ? 'block' : 'hidden'}>
+          <BoxingSystemView
+            workouts={boxingWorkouts}
+            boxingLogs={boxingLogs}
+            settings={settings}
+            onUpdateWorkouts={handleUpdateBoxingWorkouts}
+            onSaveBoxingLog={handleSaveBoxingLog}
+            onDeleteBoxingLog={handleDeleteBoxingLog}
+            onActiveSessionChange={setIsBoxingActive}
+          />
+        </div>
 
-          {activeTab === 'meals' && (
-            <motion.div
-              key="meals"
-              initial={false}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 0.12 }}
-            >
-              <MealSystemView
-                mealSystems={mealSystems}
-                walkingSessions={walkingSessions}
-                nutritionLogs={nutritionLogs}
-                settings={settings}
-                onUpdateMealSystems={handleUpdateMealSystems}
-                onUpdateWalkingSessions={handleUpdateWalkingSessions}
-                onSaveNutritionLog={handleSaveNutritionLog}
-                onDeleteNutritionLog={handleDeleteNutritionLog}
-              />
-            </motion.div>
-          )}
+        <div className={activeTab === 'meals' ? 'block' : 'hidden'}>
+          <MealSystemView
+            mealSystems={mealSystems}
+            walkingSessions={walkingSessions}
+            nutritionLogs={nutritionLogs}
+            settings={settings}
+            onUpdateMealSystems={handleUpdateMealSystems}
+            onUpdateWalkingSessions={handleUpdateWalkingSessions}
+            onSaveNutritionLog={handleSaveNutritionLog}
+            onDeleteNutritionLog={handleDeleteNutritionLog}
+          />
+        </div>
 
-          {activeTab === 'history' && (
-            <motion.div
-              key="history"
-              initial={false}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 0.12 }}
-            >
-              <HistoryView
-                logs={workoutLogs}
-                boxingLogs={boxingLogs}
-                nutritionLogs={nutritionLogs}
-                mealSystems={mealSystems}
-                workoutSystems={workoutSystems}
-                walkingSessions={walkingSessions}
-                settings={settings}
-                onDeleteLog={handleDeleteLog}
-                onDeleteBoxingLog={handleDeleteBoxingLog}
-                onDeleteNutritionLog={handleDeleteNutritionLog}
-              />
-            </motion.div>
-          )}
+        <div className={activeTab === 'history' ? 'block' : 'hidden'}>
+          <HistoryView
+            logs={workoutLogs}
+            boxingLogs={boxingLogs}
+            nutritionLogs={nutritionLogs}
+            mealSystems={mealSystems}
+            workoutSystems={workoutSystems}
+            walkingSessions={walkingSessions}
+            settings={settings}
+            onDeleteLog={handleDeleteLog}
+            onDeleteBoxingLog={handleDeleteBoxingLog}
+            onDeleteNutritionLog={handleDeleteNutritionLog}
+          />
+        </div>
 
-          {activeTab === 'settings' && (
-            <motion.div
-              key="settings"
-              initial={false}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 0.12 }}
-            >
-              <SettingsView
-                settings={settings}
-                workoutSystems={workoutSystems}
-                mealSystems={mealSystems}
-                walkingSessions={walkingSessions}
-                workoutLogs={workoutLogs}
-                boxingWorkouts={boxingWorkouts}
-                boxingLogs={boxingLogs}
-                onUpdateSettings={handleUpdateSettings}
-                onRestoreFullData={handleRestoreFullData}
-              />
-            </motion.div>
-          )}
-        </AnimatePresence>
+        <div className={activeTab === 'settings' ? 'block' : 'hidden'}>
+          <SettingsView
+            settings={settings}
+            workoutSystems={workoutSystems}
+            mealSystems={mealSystems}
+            walkingSessions={walkingSessions}
+            workoutLogs={workoutLogs}
+            boxingWorkouts={boxingWorkouts}
+            boxingLogs={boxingLogs}
+            onUpdateSettings={handleUpdateSettings}
+            onRestoreFullData={handleRestoreFullData}
+          />
+        </div>
       </main>
 
       {/* Dynamic Rest Timer */}
@@ -436,21 +396,19 @@ export function GymApp() {
               <button
                 type="button"
                 onClick={async () => {
-                  try {
-                    const text = generateGymReportText({
-                      dateKey: getTodayDateKey(),
-                      userName: settings.userName,
-                      unit: settings.weightUnit,
-                      workoutLogs,
-                      boxingLogs,
-                      workoutSystems,
-                    });
-                    await navigator.clipboard.writeText(text);
+                  const text = generateGymReportText({
+                    dateKey: getTodayDateKey(),
+                    userName: settings.userName,
+                    unit: settings.weightUnit,
+                    workoutLogs,
+                    boxingLogs,
+                    workoutSystems,
+                  });
+                  const success = await copyTextToClipboard(text);
+                  if (success) {
                     setCopiedExportType('gym');
                     soundManager.playClickPop();
                     setTimeout(() => setCopiedExportType(null), 2200);
-                  } catch {
-                    // Fallback
                   }
                 }}
                 className="w-full flex items-center justify-between gap-2 rounded-xl bg-gradient-to-r from-[#d4b26f] to-[#eed891] px-3.5 py-3 text-xs font-black uppercase text-black hover:opacity-95 active:scale-95 transition cursor-pointer shadow-md"
@@ -472,22 +430,20 @@ export function GymApp() {
               <button
                 type="button"
                 onClick={async () => {
-                  try {
-                    const currentMealSys =
-                      mealSystems.find((s) => s.isCurrent) || mealSystems[0] || null;
-                    const text = generateNutritionReportText({
-                      dateKey: getTodayDateKey(),
-                      userName: settings.userName,
-                      nutritionLogs,
-                      currentMealSystem: currentMealSys,
-                      walkingSessions,
-                    });
-                    await navigator.clipboard.writeText(text);
+                  const currentMealSys =
+                    mealSystems.find((s) => s.isCurrent) || mealSystems[0] || null;
+                  const text = generateNutritionReportText({
+                    dateKey: getTodayDateKey(),
+                    userName: settings.userName,
+                    nutritionLogs,
+                    currentMealSystem: currentMealSys,
+                    walkingSessions,
+                  });
+                  const success = await copyTextToClipboard(text);
+                  if (success) {
                     setCopiedExportType('nutrition');
                     soundManager.playClickPop();
                     setTimeout(() => setCopiedExportType(null), 2200);
-                  } catch {
-                    // Fallback
                   }
                 }}
                 className="w-full flex items-center justify-between gap-2 rounded-xl border border-[#70b8ff]/40 bg-[#70b8ff]/15 px-3.5 py-3 text-xs font-black uppercase text-[#9ed0ff] hover:bg-[#70b8ff]/25 active:scale-95 transition cursor-pointer"
@@ -509,30 +465,29 @@ export function GymApp() {
               <button
                 type="button"
                 onClick={async () => {
-                  try {
-                    const currentMealSys =
-                      mealSystems.find((s) => s.isCurrent) || mealSystems[0] || null;
-                    const text = generateDailyReportText({
-                      dateKey: getTodayDateKey(),
-                      userName: settings.userName,
-                      unit: settings.weightUnit,
-                      workoutLogs,
-                      boxingLogs,
-                      nutritionLogs,
-                      currentMealSystem: currentMealSys,
-                      workoutSystems,
-                      walkingSessions,
-                    });
-                    await navigator.clipboard.writeText(text);
+                  const currentMealSys =
+                    mealSystems.find((s) => s.isCurrent) || mealSystems[0] || null;
+                  const text = generateDailyReportText({
+                    dateKey: getTodayDateKey(),
+                    userName: settings.userName,
+                    unit: settings.weightUnit,
+                    workoutLogs,
+                    boxingLogs,
+                    nutritionLogs,
+                    currentMealSystem: currentMealSys,
+                    workoutSystems,
+                    walkingSessions,
+                  });
+                  const success = await copyTextToClipboard(text);
+                  if (success) {
                     setCopiedExportType('combined');
                     soundManager.playClickPop();
                     setTimeout(() => setCopiedExportType(null), 2200);
-                  } catch {
-                    // Fallback
                   }
                 }}
                 className="w-full flex items-center justify-between gap-2 rounded-xl border border-white/10 bg-[#1b1b22] px-3.5 py-2.5 text-xs font-bold text-zinc-300 hover:text-white hover:bg-white/[0.06] active:scale-95 transition cursor-pointer"
               >
+
                 <div className="flex items-center gap-2 min-w-0">
                   <Calendar className="w-4 h-4 shrink-0 text-[#d4b26f]" />
                   <span className="truncate">

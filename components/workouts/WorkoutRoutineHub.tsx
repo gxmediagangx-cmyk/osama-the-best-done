@@ -116,15 +116,27 @@ export const WorkoutRoutineHub: React.FC<WorkoutRoutineHubProps> = ({
 
   const handleMoveExerciseInDay = (
     dayId: string,
-    exIndex: number,
-    direction: 'up' | 'down'
+    exId: string,
+    direction: 'up' | 'down',
+    activeVariant?: 'session1' | 'session2'
   ) => {
     const updatedDays = currentSystem.days.map((d) => {
       if (d.id !== dayId) return d;
-      const targetIndex = direction === 'up' ? exIndex - 1 : exIndex + 1;
-      if (targetIndex < 0 || targetIndex >= d.exercises.length) return d;
+      const visible = d.hasVariations
+        ? d.exercises.filter((ex) => !ex.variant || ex.variant === 'both' || ex.variant === activeVariant)
+        : d.exercises;
+      const vIdx = visible.findIndex((e) => e.id === exId);
+      if (vIdx === -1) return d;
+      const targetVIdx = direction === 'up' ? vIdx - 1 : vIdx + 1;
+      if (targetVIdx < 0 || targetVIdx >= visible.length) return d;
+
+      const targetEx = visible[targetVIdx];
+      const curIndex = d.exercises.findIndex((e) => e.id === exId);
+      const targetIndex = d.exercises.findIndex((e) => e.id === targetEx.id);
+      if (curIndex === -1 || targetIndex === -1) return d;
+
       const nextExercises = [...d.exercises];
-      const [moved] = nextExercises.splice(exIndex, 1);
+      const [moved] = nextExercises.splice(curIndex, 1);
       nextExercises.splice(targetIndex, 0, moved);
       return { ...d, exercises: nextExercises };
     });
@@ -442,7 +454,7 @@ export const WorkoutRoutineHub: React.FC<WorkoutRoutineHubProps> = ({
 
                   {isExpanded && (
                     <div className="mt-2.5 space-y-2 animate-in fade-in">
-                      {day.exercises.map((ex, eIdx) => (
+                      {visibleExercises.map((ex, vIdx) => (
                         <div
                           key={ex.id}
                           className="flex items-center justify-between gap-2.5 rounded-xl bg-[#181820]/90 px-3 py-2.5 text-sm border border-white/[0.06]"
@@ -493,7 +505,7 @@ export const WorkoutRoutineHub: React.FC<WorkoutRoutineHubProps> = ({
                                     className="font-semibold text-zinc-100 truncate cursor-pointer hover:text-[#eed891] transition"
                                     title="Click to rename exercise"
                                   >
-                                    {eIdx + 1}. {ex.name}
+                                    {vIdx + 1}. {ex.name}
                                   </span>
                                   <button
                                     type="button"
@@ -517,12 +529,12 @@ export const WorkoutRoutineHub: React.FC<WorkoutRoutineHubProps> = ({
                             )}
                           </div>
 
-                          {day.exercises.length > 1 && editingExerciseId !== ex.id && (
+                          {visibleExercises.length > 1 && editingExerciseId !== ex.id && (
                             <div className="flex items-center gap-1 shrink-0">
                               <button
                                 type="button"
-                                disabled={eIdx === 0}
-                                onClick={() => handleMoveExerciseInDay(day.id, eIdx, 'up')}
+                                disabled={vIdx === 0}
+                                onClick={() => handleMoveExerciseInDay(day.id, ex.id, 'up', day.hasVariations ? activeVariant : undefined)}
                                 className="flex h-9 w-9 items-center justify-center rounded-lg border border-white/10 bg-[#121217] text-zinc-300 hover:text-[#d4b26f] disabled:opacity-25 disabled:pointer-events-none active:scale-90 transition touch-manipulation cursor-pointer"
                                 title="Move up"
                               >
@@ -530,8 +542,8 @@ export const WorkoutRoutineHub: React.FC<WorkoutRoutineHubProps> = ({
                               </button>
                               <button
                                 type="button"
-                                disabled={eIdx === day.exercises.length - 1}
-                                onClick={() => handleMoveExerciseInDay(day.id, eIdx, 'down')}
+                                disabled={vIdx === visibleExercises.length - 1}
+                                onClick={() => handleMoveExerciseInDay(day.id, ex.id, 'down', day.hasVariations ? activeVariant : undefined)}
                                 className="flex h-9 w-9 items-center justify-center rounded-lg border border-white/10 bg-[#121217] text-zinc-300 hover:text-[#d4b26f] disabled:opacity-25 disabled:pointer-events-none active:scale-90 transition touch-manipulation cursor-pointer"
                                 title="Move down"
                               >

@@ -152,6 +152,16 @@ export function generateGymReportText(params: {
         } else {
           lines.push(`  • Didn't Do: ${d.drillName} (0/${d.totalRounds} rounds)${detailsSuffix}`);
         }
+
+        if (d.roundDetails && d.roundDetails.some((r) => r.focusCombo || r.notes)) {
+          d.roundDetails.forEach((r) => {
+            if (r.focusCombo || r.notes) {
+              const rCombo = r.focusCombo ? ` Combo: "${r.focusCombo}"` : '';
+              const rNote = r.notes ? ` Note: "${r.notes}"` : '';
+              lines.push(`    - Round ${r.roundNumber} (${r.completed ? 'Done' : 'Skipped'}):${rCombo}${rNote}`);
+            }
+          });
+        }
       });
       if (b.userNotes) lines.push(`  • Boxing Note: "${b.userNotes}"`);
     });
@@ -435,6 +445,16 @@ export function generateDailyReportText(params: {
         } else {
           lines.push(`  • Didn't Do: ${d.drillName} (0/${d.totalRounds} rounds)${detailsSuffix}`);
         }
+
+        if (d.roundDetails && d.roundDetails.some((r) => r.focusCombo || r.notes)) {
+          d.roundDetails.forEach((r) => {
+            if (r.focusCombo || r.notes) {
+              const rCombo = r.focusCombo ? ` Combo: "${r.focusCombo}"` : '';
+              const rNote = r.notes ? ` Note: "${r.notes}"` : '';
+              lines.push(`    - Round ${r.roundNumber} (${r.completed ? 'Done' : 'Skipped'}):${rCombo}${rNote}`);
+            }
+          });
+        }
       });
       if (b.userNotes) {
         lines.push(`  • Boxing Note: "${b.userNotes}"`);
@@ -642,17 +662,66 @@ export function generateAIPromptMarkdown(
   return md;
 }
 
-export function downloadFile(content: string, filename: string, mimeType: string) {
-  const blob = new Blob([content], { type: mimeType });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = filename;
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  URL.revokeObjectURL(url);
+export async function copyTextToClipboard(text: string): Promise<boolean> {
+  // 1. Try modern navigator.clipboard
+  if (typeof navigator !== 'undefined' && navigator.clipboard && navigator.clipboard.writeText) {
+    try {
+      await navigator.clipboard.writeText(text);
+      return true;
+    } catch (e) {
+      console.warn('navigator.clipboard.writeText failed, using fallback', e);
+    }
+  }
+
+  // 2. Fallback to hidden textarea with execCommand
+  if (typeof document !== 'undefined') {
+    try {
+      const textarea = document.createElement('textarea');
+      textarea.value = text;
+      textarea.style.position = 'fixed';
+      textarea.style.left = '-9999px';
+      textarea.style.top = '0';
+      textarea.setAttribute('readonly', '');
+      document.body.appendChild(textarea);
+      textarea.focus();
+      textarea.select();
+      textarea.setSelectionRange(0, textarea.value.length);
+      const successful = document.execCommand('copy');
+      document.body.removeChild(textarea);
+      if (successful) return true;
+    } catch (err) {
+      console.error('execCommand copy fallback failed', err);
+    }
+  }
+
+  return false;
 }
+
+export function downloadFile(content: string, filename: string, mimeType: string) {
+  try {
+    const blob = new Blob([content], { type: mimeType });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    a.style.display = 'none';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+
+    // Keep object URL alive for 60 seconds so mobile browsers have time to finish downloading
+    setTimeout(() => {
+      try {
+        URL.revokeObjectURL(url);
+      } catch {
+        // Ignore
+      }
+    }, 60000);
+  } catch (e) {
+    console.error('Failed to download file:', e);
+  }
+}
+
 
 export function downloadLogsAsJSON(
   logs: CompletedSessionLog[],

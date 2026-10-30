@@ -558,7 +558,7 @@ export const DEFAULT_WORKOUT_SYSTEMS: WorkoutSystem[] = [
             targetSets: 3,
             targetReps: 15,
             defaultWeight: 0,
-            notes: "Target: Lower Abs & Hip Flexors • Captain's Chair forearms supported or hanging bar",
+            cues: "Target: Lower Abs & Hip Flexors • Captain's Chair forearms supported or hanging bar",
             sets: [
               { id: 'set-la9-1', setNumber: 1, weight: 0, reps: 15, completed: false },
               { id: 'set-la9-2', setNumber: 2, weight: 0, reps: 15, completed: false },
@@ -1391,70 +1391,6 @@ class LocalGymDatabase {
     }));
   }
 
-  private migrateBoxingWorkoutsIfNeeded(workouts: BoxingWorkout[]): { workouts: BoxingWorkout[]; migrated: boolean } {
-    let migrated = false;
-    const defaultSolo = DEFAULT_BOXING_WORKOUTS[0];
-    const updated = workouts.map((w) => {
-      if (
-        w.id === 'boxing-solo-bag-footwork' &&
-        (w.name !== 'Boxing — Power, Speed, Fitness, and Abs' ||
-          w.drills.some((d) => d.name === 'Abs Circuit') ||
-          w.drills.length < 12 ||
-          !w.drills.some((d) => d.trackingMode === 'reps' || d.trackingMode === 'weight_reps'))
-      ) {
-        migrated = true;
-        return defaultSolo;
-      }
-      return w;
-    });
-    return { workouts: updated, migrated };
-  }
-
-  private migrateDaysIfNeeded(systems: WorkoutSystem[]): { systems: WorkoutSystem[]; migrated: boolean } {
-    let migrated = false;
-    const defaultAesthetic = DEFAULT_WORKOUT_SYSTEMS[0];
-
-    const updated = systems.map((sys) => {
-      if (sys.id !== 'system-aesthetic-4day') return sys;
-
-      const hasExactNewExercises =
-        sys.days[0]?.exercises.some((e) => e.name.toLowerCase().includes('shrugs')) &&
-        sys.days[1]?.exercises.some((e) => e.name.toLowerCase().includes('behind-the-body')) &&
-        sys.days[2]?.exercises.some((e) => e.name.toLowerCase().includes('russian twists'));
-
-      if (!hasExactNewExercises || sys.days.length !== 3) {
-        migrated = true;
-        return {
-          ...defaultAesthetic,
-          isCurrent: sys.isCurrent,
-        };
-      }
-
-      if (sys.description !== defaultAesthetic.description) {
-        migrated = true;
-        return {
-          ...sys,
-          name: defaultAesthetic.name,
-          description: defaultAesthetic.description,
-          days: sys.days.map((d, idx) => {
-            if (idx === 1 && defaultAesthetic.days[1]) {
-              return {
-                ...d,
-                title: defaultAesthetic.days[1].title,
-                session1Label: defaultAesthetic.days[1].session1Label,
-                session2Label: defaultAesthetic.days[1].session2Label,
-              };
-            }
-            return d;
-          }),
-        };
-      }
-
-      return sys;
-    });
-    return { systems: updated, migrated };
-  }
-
   private separateCuesAndNotes(systems: WorkoutSystem[]): { systems: WorkoutSystem[]; migrated: boolean } {
     let migrated = false;
     const updated = systems.map((sys) => ({
@@ -1462,12 +1398,13 @@ class LocalGymDatabase {
       days: sys.days.map((d) => ({
         ...d,
         exercises: d.exercises.map((ex) => {
-          if (!ex.cues && ex.notes) {
+          // If exercise has no cues and notes starts with 'Target:' or cues bullet '•', migrate to cues
+          if (!ex.cues && ex.notes && (ex.notes.startsWith('Target:') || ex.notes.includes('•'))) {
             migrated = true;
             return {
               ...ex,
               cues: ex.notes,
-              notes: '',
+              notes: undefined,
             };
           }
           return ex;
@@ -1480,25 +1417,40 @@ class LocalGymDatabase {
   async loadWorkoutSystems(): Promise<WorkoutSystem[]> {
     if (!this.isBrowser) return DEFAULT_WORKOUT_SYSTEMS;
     try {
+      // 1. Primary IndexedDB
       const idbVal = await get<WorkoutSystem[]>('osama_workout_systems');
       if (idbVal && Array.isArray(idbVal) && idbVal.length > 0) {
-        const { systems, migrated } = this.migrateDaysIfNeeded(idbVal);
-        const separated = this.separateCuesAndNotes(systems);
-        if (migrated || separated.migrated) {
-          await this.saveWorkoutSystems(separated.systems);
-        }
+        const separated = this.separateCuesAndNotes(idbVal);
+        this.healWorkoutStorage(separated.systems);
         return separated.systems;
       }
 
+      // 2. Primary LocalStorage
       const lsVal = localStorage.getItem('osama_workout_systems');
       if (lsVal) {
         const parsed = JSON.parse(lsVal);
         if (Array.isArray(parsed) && parsed.length > 0) {
-          const { systems, migrated } = this.migrateDaysIfNeeded(parsed);
-          const separated = this.separateCuesAndNotes(systems);
-          if (migrated || separated.migrated) {
-            await this.saveWorkoutSystems(separated.systems);
-          }
+          const separated = this.separateCuesAndNotes(parsed);
+          this.healWorkoutStorage(separated.systems);
+          return separated.systems;
+        }
+      }
+
+      // 3. Vault Backup in IndexedDB (Self-healing safety net)
+      const vaultIdb = await get<WorkoutSystem[]>('osama_vault_workout_systems');
+      if (vaultIdb && Array.isArray(vaultIdb) && vaultIdb.length > 0) {
+        const separated = this.separateCuesAndNotes(vaultIdb);
+        this.healWorkoutStorage(separated.systems);
+        return separated.systems;
+      }
+
+      // 4. Vault Backup in LocalStorage (Self-healing safety net)
+      const vaultLs = localStorage.getItem('osama_vault_workout_systems');
+      if (vaultLs) {
+        const parsed = JSON.parse(vaultLs);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          const separated = this.separateCuesAndNotes(parsed);
+          this.healWorkoutStorage(separated.systems);
           return separated.systems;
         }
       }
@@ -1508,63 +1460,63 @@ class LocalGymDatabase {
     return DEFAULT_WORKOUT_SYSTEMS;
   }
 
+  // Cross-mirrors data across both IndexedDB and LocalStorage + Vault backups
+  private async healWorkoutStorage(systems: WorkoutSystem[]): Promise<void> {
+    if (!this.isBrowser) return;
+    try {
+      const serialized = JSON.stringify(systems);
+      localStorage.setItem('osama_workout_systems', serialized);
+      localStorage.setItem('osama_vault_workout_systems', serialized);
+      await set('osama_workout_systems', systems);
+      await set('osama_vault_workout_systems', systems);
+    } catch {
+      // Ignore background heal errors
+    }
+  }
+
   async saveWorkoutSystems(systems: WorkoutSystem[]): Promise<void> {
     if (!this.isBrowser) return;
     try {
-      localStorage.setItem('osama_workout_systems', JSON.stringify(systems));
-      await set('osama_workout_systems', systems);
+      await this.healWorkoutStorage(systems);
     } catch (e) {
       console.warn('Error saving workout systems', e);
     }
   }
 
-  private migrateMealSystemsIfNeeded(systems: MealSystem[]): { systems: MealSystem[]; migrated: boolean } {
-    let migrated = false;
-    const hasOptions = systems.some((s) => s.meals.some((m) => m.options && m.options.length > 0));
-    const hasBothRoutines =
-      systems.length >= 2 &&
-      systems.some((s) => s.id === 'routine-day-training') &&
-      systems.some((s) => s.id === 'routine-night-training');
-
-    const serialized = JSON.stringify(systems).toLowerCase();
-    const hasOldFoods =
-      serialized.includes('salmon') ||
-      serialized.includes('quick oats') ||
-      serialized.includes('sourdough') ||
-      serialized.includes('whey');
-    const hasEgyptianPlan =
-      (serialized.includes('areesh') || serialized.includes('قريش')) &&
-      (serialized.includes('ful') || serialized.includes('فول')) &&
-      (serialized.includes('baladi') || serialized.includes('بلدي'));
-
-    if (!hasOptions || !hasBothRoutines || hasOldFoods || !hasEgyptianPlan) {
-      migrated = true;
-      return { systems: DEFAULT_MEAL_SYSTEMS, migrated };
-    }
-    return { systems, migrated: false };
-  }
-
   async loadMealSystems(): Promise<MealSystem[]> {
     if (!this.isBrowser) return DEFAULT_MEAL_SYSTEMS;
     try {
+      // 1. Primary IndexedDB
       const idbVal = await get<MealSystem[]>('osama_meal_systems');
       if (idbVal && Array.isArray(idbVal) && idbVal.length > 0) {
-        const { systems, migrated } = this.migrateMealSystemsIfNeeded(idbVal);
-        if (migrated) {
-          await this.saveMealSystems(systems);
-        }
-        return systems;
+        this.healMealStorage(idbVal);
+        return idbVal;
       }
 
+      // 2. Primary LocalStorage
       const lsVal = localStorage.getItem('osama_meal_systems');
       if (lsVal) {
         const parsed = JSON.parse(lsVal);
         if (Array.isArray(parsed) && parsed.length > 0) {
-          const { systems, migrated } = this.migrateMealSystemsIfNeeded(parsed);
-          if (migrated) {
-            await this.saveMealSystems(systems);
-          }
-          return systems;
+          this.healMealStorage(parsed);
+          return parsed;
+        }
+      }
+
+      // 3. Vault Backup in IndexedDB
+      const vaultIdb = await get<MealSystem[]>('osama_vault_meal_systems');
+      if (vaultIdb && Array.isArray(vaultIdb) && vaultIdb.length > 0) {
+        this.healMealStorage(vaultIdb);
+        return vaultIdb;
+      }
+
+      // 4. Vault Backup in LocalStorage
+      const vaultLs = localStorage.getItem('osama_vault_meal_systems');
+      if (vaultLs) {
+        const parsed = JSON.parse(vaultLs);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          this.healMealStorage(parsed);
+          return parsed;
         }
       }
     } catch (e) {
@@ -1573,11 +1525,23 @@ class LocalGymDatabase {
     return DEFAULT_MEAL_SYSTEMS;
   }
 
+  private async healMealStorage(systems: MealSystem[]): Promise<void> {
+    if (!this.isBrowser) return;
+    try {
+      const serialized = JSON.stringify(systems);
+      localStorage.setItem('osama_meal_systems', serialized);
+      localStorage.setItem('osama_vault_meal_systems', serialized);
+      await set('osama_meal_systems', systems);
+      await set('osama_vault_meal_systems', systems);
+    } catch {
+      // Ignore background heal errors
+    }
+  }
+
   async saveMealSystems(mealSystems: MealSystem[]): Promise<void> {
     if (!this.isBrowser) return;
     try {
-      localStorage.setItem('osama_meal_systems', JSON.stringify(mealSystems));
-      await set('osama_meal_systems', mealSystems);
+      await this.healMealStorage(mealSystems);
     } catch (e) {
       console.warn('Error saving meal systems', e);
     }
@@ -1640,26 +1604,41 @@ class LocalGymDatabase {
   async loadBoxingWorkouts(): Promise<BoxingWorkout[]> {
     if (!this.isBrowser) return DEFAULT_BOXING_WORKOUTS;
     try {
+      // 1. Primary IndexedDB
       const idbVal = await get<BoxingWorkout[]>('osama_boxing_workouts');
       if (idbVal && Array.isArray(idbVal) && idbVal.length > 0) {
         const normalized = this.normalizeBoxingWorkouts(idbVal);
-        const { workouts, migrated } = this.migrateBoxingWorkoutsIfNeeded(normalized);
-        if (migrated) {
-          await this.saveBoxingWorkouts(workouts);
-        }
-        return workouts;
+        this.healBoxingStorage(normalized);
+        return normalized;
       }
 
+      // 2. Primary LocalStorage
       const lsVal = localStorage.getItem('osama_boxing_workouts');
       if (lsVal) {
         const parsed = JSON.parse(lsVal);
         if (Array.isArray(parsed) && parsed.length > 0) {
           const normalized = this.normalizeBoxingWorkouts(parsed);
-          const { workouts, migrated } = this.migrateBoxingWorkoutsIfNeeded(normalized);
-          if (migrated) {
-            await this.saveBoxingWorkouts(workouts);
-          }
-          return workouts;
+          this.healBoxingStorage(normalized);
+          return normalized;
+        }
+      }
+
+      // 3. Vault Backup in IndexedDB
+      const vaultIdb = await get<BoxingWorkout[]>('osama_vault_boxing_workouts');
+      if (vaultIdb && Array.isArray(vaultIdb) && vaultIdb.length > 0) {
+        const normalized = this.normalizeBoxingWorkouts(vaultIdb);
+        this.healBoxingStorage(normalized);
+        return normalized;
+      }
+
+      // 4. Vault Backup in LocalStorage
+      const vaultLs = localStorage.getItem('osama_vault_boxing_workouts');
+      if (vaultLs) {
+        const parsed = JSON.parse(vaultLs);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          const normalized = this.normalizeBoxingWorkouts(parsed);
+          this.healBoxingStorage(normalized);
+          return normalized;
         }
       }
     } catch (e) {
@@ -1668,11 +1647,23 @@ class LocalGymDatabase {
     return DEFAULT_BOXING_WORKOUTS;
   }
 
+  private async healBoxingStorage(workouts: BoxingWorkout[]): Promise<void> {
+    if (!this.isBrowser) return;
+    try {
+      const serialized = JSON.stringify(workouts);
+      localStorage.setItem('osama_boxing_workouts', serialized);
+      localStorage.setItem('osama_vault_boxing_workouts', serialized);
+      await set('osama_boxing_workouts', workouts);
+      await set('osama_vault_boxing_workouts', workouts);
+    } catch {
+      // Ignore
+    }
+  }
+
   async saveBoxingWorkouts(workouts: BoxingWorkout[]): Promise<void> {
     if (!this.isBrowser) return;
     try {
-      localStorage.setItem('osama_boxing_workouts', JSON.stringify(workouts));
-      await set('osama_boxing_workouts', workouts);
+      await this.healBoxingStorage(workouts);
     } catch (e) {
       console.warn('Error saving boxing workouts', e);
     }
@@ -1732,7 +1723,20 @@ class LocalGymDatabase {
     }
   }
 
-  // Full Database Backup Export as JSON file
+  // Full Database Backup Export as JSON file (cross-platform Blob download)
+  getBackupJSONString(payload: {
+    settings: AppSettings;
+    workoutSystems: WorkoutSystem[];
+    mealSystems: MealSystem[];
+    walkingSessions: WalkingSession[];
+    workoutLogs: CompletedSessionLog[];
+    boxingWorkouts?: BoxingWorkout[];
+    boxingLogs?: CompletedBoxingLog[];
+    nutritionLogs?: CompletedNutritionLog[];
+  }): string {
+    return JSON.stringify(payload, null, 2);
+  }
+
   exportFullBackup(payload: {
     settings: AppSettings;
     workoutSystems: WorkoutSystem[];
@@ -1743,17 +1747,32 @@ class LocalGymDatabase {
     boxingLogs?: CompletedBoxingLog[];
     nutritionLogs?: CompletedNutritionLog[];
   }) {
-    const dataStr = 'data:text/json;charset=utf-8,' + encodeURIComponent(JSON.stringify(payload, null, 2));
-    const downloadAnchor = document.createElement('a');
-    downloadAnchor.setAttribute('href', dataStr);
-    downloadAnchor.setAttribute(
-      'download',
-      `osama_gym_backup_${new Date().toISOString().slice(0, 10)}.json`
-    );
-    document.body.appendChild(downloadAnchor);
-    downloadAnchor.click();
-    downloadAnchor.remove();
+    try {
+      const jsonStr = this.getBackupJSONString(payload);
+      const blob = new Blob([jsonStr], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const downloadAnchor = document.createElement('a');
+      downloadAnchor.setAttribute('href', url);
+      downloadAnchor.setAttribute(
+        'download',
+        `osama_gym_backup_${new Date().toISOString().slice(0, 10)}.json`
+      );
+      downloadAnchor.style.display = 'none';
+      document.body.appendChild(downloadAnchor);
+      downloadAnchor.click();
+      document.body.removeChild(downloadAnchor);
+      setTimeout(() => {
+        try {
+          URL.revokeObjectURL(url);
+        } catch {
+          // Ignore
+        }
+      }, 60000);
+    } catch (e) {
+      console.error('Failed to export full backup:', e);
+    }
   }
+
 
   // Restore from imported JSON
   async importFullBackup(jsonText: string): Promise<boolean> {

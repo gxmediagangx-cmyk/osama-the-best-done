@@ -3,9 +3,9 @@ import type { MetadataRoute } from 'next';
 export default function manifest(): MetadataRoute.Manifest {
   return {
     id: '/',
-    name: 'Osama The Best',
-    short_name: 'Osama',
-    description: 'Osama The Best — Private offline-first workout, boxing, and nutrition system.',
+    name: 'Osama the best',
+    short_name: 'Osama the best',
+    description: 'Osama the best — Private offline-first workout, boxing, and nutrition system.',
     start_url: '/',
     scope: '/',
     display: 'standalone',

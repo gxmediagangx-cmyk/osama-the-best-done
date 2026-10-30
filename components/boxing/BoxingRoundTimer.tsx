@@ -581,16 +581,19 @@ export const BoxingRoundTimer: React.FC<BoxingRoundTimerProps> = ({
               </button>
             </div>
 
-            {/* Active Combo Banner if present */}
+            {/* Active Combo Banner with Large High-Contrast Font for Boxing Training */}
             {activeCombo && (
-              <div className="rounded-xl border border-[#d4b26f]/25 bg-black/40 px-3 py-2 text-xs text-[#eed891]">
-                <span className="font-black uppercase text-[11px] tracking-wider text-[#d4b26f] mr-1.5">
-                  <Flame className="w-3.5 h-3.5 inline mr-1 -mt-0.5" />
-                  COMBO:
-                </span>
-                <span className="font-mono text-zinc-100">{activeCombo}</span>
+              <div className="rounded-2xl border-2 border-[#d4b26f]/50 bg-black/80 px-4 py-3 text-center shadow-lg">
+                <div className="flex items-center justify-center gap-1.5 font-black uppercase text-xs sm:text-sm tracking-wider text-[#eed891] mb-1">
+                  <Flame className="w-4 h-4 text-[#d4b26f] fill-current" />
+                  <span>Round {currentRound} Focus Combo</span>
+                </div>
+                <div className="font-mono text-xl sm:text-2xl md:text-3xl font-black text-amber-200 tracking-wider leading-snug break-words">
+                  {activeCombo}
+                </div>
               </div>
             )}
+
 
             {/* Main Countdown Display + Controls (Stacked cleanly so buttons never collide) */}
             <div className="bg-[#0c0c10] p-3.5 rounded-2xl border border-white/[0.06] space-y-3">

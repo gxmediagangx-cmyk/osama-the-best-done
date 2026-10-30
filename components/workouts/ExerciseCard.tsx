@@ -59,6 +59,15 @@ export const ExerciseCard: React.FC<ExerciseCardProps> = ({
   const [isRenaming, setIsRenaming] = useState(false);
   const [nameText, setNameText] = useState(exercise.name);
 
+  // Sync state during render when exercise prop changes
+  const [prevExercise, setPrevExercise] = useState(exercise);
+  if (exercise !== prevExercise) {
+    setPrevExercise(exercise);
+    if (!isEditingNotes) setNotesText(exercise.notes || '');
+    if (!isEditingCues) setCuesText(exercise.cues || '');
+    if (!isRenaming) setNameText(exercise.name);
+  }
+
 
   const handleStartRename = () => {
     setNameText(exercise.name);
@@ -725,6 +734,12 @@ export const ExerciseCard: React.FC<ExerciseCardProps> = ({
           <textarea
             value={cuesText}
             onChange={(e) => setCuesText(e.target.value)}
+            onBlur={() => {
+              const trimmed = cuesText.trim();
+              if (trimmed !== (exercise.cues || '')) {
+                onUpdateExercise({ ...exercise, cues: trimmed || undefined });
+              }
+            }}
             placeholder="e.g. Bench pin 3, 2-sec pause at chest, slow eccentric, pronated medium grip..."
             className="w-full rounded-lg border border-white/10 bg-zinc-950 p-2.5 text-xs sm:text-sm text-white placeholder-zinc-500 focus:border-[#d4b26f] focus:outline-none"
             rows={2}
@@ -822,6 +837,12 @@ export const ExerciseCard: React.FC<ExerciseCardProps> = ({
           <textarea
             value={notesText}
             onChange={(e) => setNotesText(e.target.value)}
+            onBlur={() => {
+              const trimmed = notesText.trim();
+              if (trimmed !== (exercise.notes || '')) {
+                onUpdateExercise({ ...exercise, notes: trimmed || undefined });
+              }
+            }}
             placeholder="e.g. I did this exercise badly today, need to work on control and full stretch next time..."
             className="w-full rounded-lg border border-sky-500/20 bg-zinc-950 p-2.5 text-xs sm:text-sm text-white placeholder-zinc-500 focus:border-sky-400 focus:outline-none"
             rows={2}

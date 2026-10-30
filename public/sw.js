@@ -1,5 +1,6 @@
-// Osama Gym & Nutrition App - Production Offline-First Service Worker
-const CACHE_NAME = 'osama-gym-cache-v6';
+// Osama the best - Production Offline-First Service Worker
+const CACHE_NAME = 'osama-gym-cache-v7';
+
 
 const PRECACHE_ASSETS = [
   '/',
