@@ -5,6 +5,7 @@ import {
   CompletedBoxingLog,
   CompletedNutritionLog,
   CompletedSessionLog,
+  Exercise,
   MealSystem,
   WalkingSession,
   WorkoutSystem,
@@ -1391,6 +1392,63 @@ class LocalGymDatabase {
     }));
   }
 
+  private ensureExerciseVariantsAndSplit(systems: WorkoutSystem[]): { systems: WorkoutSystem[]; migrated: boolean } {
+    let migrated = false;
+
+    // Helper map from default exercises for reference
+    const defaultDays = DEFAULT_WORKOUT_SYSTEMS[0]?.days || [];
+
+    const updated = systems.map((sys) => ({
+      ...sys,
+      days: sys.days.map((d) => {
+        if (!d.hasVariations) return d;
+
+        const defaultDay = defaultDays.find((dd) => dd.id === d.id || dd.title.toLowerCase().includes(d.title.toLowerCase().slice(0, 10)));
+        if (!defaultDay) return d;
+
+        // Build lookup map by lowercase name and id
+        const refMap = new Map<string, Exercise>();
+        defaultDay.exercises.forEach((ex) => {
+          refMap.set(ex.id, ex);
+          refMap.set(ex.name.toLowerCase().trim(), ex);
+        });
+
+        // Track which default exercises already exist in this day
+        const existingNames = new Set(d.exercises.map((e) => e.name.toLowerCase().trim()));
+        const existingIds = new Set(d.exercises.map((e) => e.id));
+
+        const updatedExercises = d.exercises.map((ex) => {
+          const match = refMap.get(ex.id) || refMap.get(ex.name.toLowerCase().trim());
+          if (match && match.variant && ex.variant !== match.variant) {
+            migrated = true;
+            return {
+              ...ex,
+              variant: match.variant,
+            };
+          }
+          return ex;
+        });
+
+        // If some default exercises are missing from the day (e.g. session 2 exercises were missing in old save)
+        const missingFromDefault: Exercise[] = [];
+        defaultDay.exercises.forEach((defEx) => {
+          const normName = defEx.name.toLowerCase().trim();
+          if (!existingNames.has(normName) && !existingIds.has(defEx.id)) {
+            missingFromDefault.push({ ...defEx });
+            migrated = true;
+          }
+        });
+
+        return {
+          ...d,
+          exercises: [...updatedExercises, ...missingFromDefault],
+        };
+      }),
+    }));
+
+    return { systems: updated, migrated };
+  }
+
   private separateCuesAndNotes(systems: WorkoutSystem[]): { systems: WorkoutSystem[]; migrated: boolean } {
     let migrated = false;
     const updated = systems.map((sys) => ({
@@ -1421,8 +1479,9 @@ class LocalGymDatabase {
       const idbVal = await get<WorkoutSystem[]>('osama_workout_systems');
       if (idbVal && Array.isArray(idbVal) && idbVal.length > 0) {
         const separated = this.separateCuesAndNotes(idbVal);
-        this.healWorkoutStorage(separated.systems);
-        return separated.systems;
+        const withVariants = this.ensureExerciseVariantsAndSplit(separated.systems);
+        this.healWorkoutStorage(withVariants.systems);
+        return withVariants.systems;
       }
 
       // 2. Primary LocalStorage
@@ -1431,8 +1490,9 @@ class LocalGymDatabase {
         const parsed = JSON.parse(lsVal);
         if (Array.isArray(parsed) && parsed.length > 0) {
           const separated = this.separateCuesAndNotes(parsed);
-          this.healWorkoutStorage(separated.systems);
-          return separated.systems;
+          const withVariants = this.ensureExerciseVariantsAndSplit(separated.systems);
+          this.healWorkoutStorage(withVariants.systems);
+          return withVariants.systems;
         }
       }
 
@@ -1440,8 +1500,9 @@ class LocalGymDatabase {
       const vaultIdb = await get<WorkoutSystem[]>('osama_vault_workout_systems');
       if (vaultIdb && Array.isArray(vaultIdb) && vaultIdb.length > 0) {
         const separated = this.separateCuesAndNotes(vaultIdb);
-        this.healWorkoutStorage(separated.systems);
-        return separated.systems;
+        const withVariants = this.ensureExerciseVariantsAndSplit(separated.systems);
+        this.healWorkoutStorage(withVariants.systems);
+        return withVariants.systems;
       }
 
       // 4. Vault Backup in LocalStorage (Self-healing safety net)
@@ -1450,8 +1511,9 @@ class LocalGymDatabase {
         const parsed = JSON.parse(vaultLs);
         if (Array.isArray(parsed) && parsed.length > 0) {
           const separated = this.separateCuesAndNotes(parsed);
-          this.healWorkoutStorage(separated.systems);
-          return separated.systems;
+          const withVariants = this.ensureExerciseVariantsAndSplit(separated.systems);
+          this.healWorkoutStorage(withVariants.systems);
+          return withVariants.systems;
         }
       }
     } catch (e) {

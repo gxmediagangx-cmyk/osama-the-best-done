@@ -23,6 +23,11 @@ export interface Exercise {
   defaultWeight: number;
   cues?: string; // Permanent technique & form execution cues (always saved across workouts)
   notes?: string; // Today's session performance notes (e.g. "Did exercise badly today", resets upon saving workout)
+  warning?: string; // 1-week cycle caution warning (e.g. "Left shoulder click on set 2, keep elbows tucked")
+  warningCreatedAt?: string; // ISO timestamp or date key when warning was created/edited
+  warningCreatedDayId?: string; // e.g. "day-chest-back"
+  warningCreatedVariant?: 'session1' | 'session2'; // e.g. "session1" (Sunday) or "session2" (Wednesday)
+  warningSessionLogId?: string; // Session ID in which the warning was created/edited
   sets: ExerciseSet[];
   // Custom overload overrides if set (defaults to global settings)
   customRepCeiling?: number;
@@ -62,6 +67,8 @@ export interface CompletedSessionLog {
   variant?: 'session1' | 'session2';
   variantLabel?: string;
   completedAt: string;
+  startTime?: string; // e.g. "18:00" or "06:00 PM"
+  endTime?: string;   // e.g. "19:15" or "07:15 PM"
   durationMinutes: number;
   totalVolume: number; // total kg or lbs lifted
   totalSetsCompleted: number;
@@ -72,6 +79,7 @@ export interface CompletedSessionLog {
     category: string;
     notes?: string; // Today's session feedback notes
     cues?: string; // Permanent technique cues
+    warning?: string; // Active caution warning during this session
     sets: {
       setNumber: number;
       weight: number;
@@ -132,6 +140,9 @@ export interface MealSystem {
   meals: Meal[];
   waterCount?: number;
   waterTarget?: number;
+  wakeTime?: string;
+  sleepTime?: string;
+  morningWeight?: number;
   supplements?: SupplementItem[];
 }
 
@@ -162,7 +173,17 @@ export type AppThemeId =
   | 'fuchsia'
   | 'cyan'
   | 'indigo'
-  | 'magma';
+  | 'magma'
+  | 'coral'
+  | 'mint'
+  | 'canary'
+  | 'sand'
+  | 'olive'
+  | 'slate'
+  | 'ruby'
+  | 'bronze'
+  | 'jade'
+  | 'lilac';
 
 export interface AppSettings {
   userName: string;
@@ -254,6 +275,8 @@ export interface CompletedBoxingLog {
   mode: BoxingMode;
   partnerName?: string;
   completedAt: string;
+  startTime?: string; // e.g. "18:00" or "06:00 PM"
+  endTime?: string;   // e.g. "19:00" or "07:00 PM"
   durationMinutes: number;
   totalRoundsCompleted: number;
   totalDrillsCompleted: number;
@@ -286,6 +309,9 @@ export interface CompletedNutritionLog {
   systemId: string;
   systemName: string;
   routineName?: string;
+  wakeTime?: string;  // e.g. "07:30 AM" or "07:30"
+  sleepTime?: string; // e.g. "11:30 PM" or "23:30"
+  morningWeight?: number; // e.g. 80.5 kg (optional, empty if not weighed)
   mealsCompletedCount: number;
   totalMealsCount: number;
   totalCalories?: number;

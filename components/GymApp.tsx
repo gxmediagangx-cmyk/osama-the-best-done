@@ -47,6 +47,7 @@ import { soundManager } from '@/lib/sound';
 import { APP_THEMES } from '@/lib/themes';
 
 export function GymApp() {
+  const [mounted, setMounted] = useState(false);
   const [activeTab, setActiveTab] = useState<ActiveTab>('workouts');
 
   // Core App State
@@ -110,7 +111,9 @@ export function GymApp() {
         console.error('Error loading data', e);
       }
     }
-    initData();
+    initData().finally(() => {
+      setMounted(true);
+    });
   }, []);
 
   const handleUpdateSettings = (newSettings: AppSettings) => {
@@ -236,6 +239,17 @@ export function GymApp() {
     root.style.setProperty('--theme-bg-surface', activeTheme.bgSurface);
     root.style.setProperty('--theme-bg-elevated', activeTheme.bgElevated);
   }, [activeTheme]);
+
+  if (!mounted) {
+    return (
+      <div className="min-h-screen bg-[#0b0b0e] flex items-center justify-center">
+        <div className="flex flex-col items-center gap-3">
+          <div className="h-9 w-9 animate-spin rounded-full border-2 border-[#d4b26f] border-t-transparent" />
+          <span className="font-mono text-xs uppercase tracking-widest text-[#d4b26f]/80">Loading Osama App...</span>
+        </div>
+      </div>
+    );
+  }
 
   const currentSys = workoutSystems.find((s) => s.isCurrent) || workoutSystems[0];
   const activeDay = currentSys?.days[0];

@@ -58,6 +58,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   const [savedSuccess, setSavedSuccess] = useState(false);
   const [importStatus, setImportStatus] = useState<string | null>(null);
   const [isPersisted, setIsPersisted] = useState<boolean | null>(null);
+  const [settingsVibeFilter, setSettingsVibeFilter] = useState<'all' | 'cyber' | 'tactical' | 'royale'>('all');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -159,7 +160,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
       <PWAInstallButton variant="card" />
 
       <form onSubmit={handleSave} className="space-y-4">
-        {/* UI Color Themes & Appearance Card (10 Themes) */}
+        {/* UI Color Themes & Appearance Card (26 Themes across Vibes) */}
         <div className="rounded-2xl border border-[#d4b26f]/30 bg-[#121217] p-4 shadow-sm">
           <div className="flex items-center justify-between mb-1">
             <div className="flex items-center gap-1.5 text-xs font-black uppercase tracking-wider text-[#d4b26f]">
@@ -169,11 +170,45 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
             <span className="text-[11px] font-mono text-zinc-400">Instant Switch</span>
           </div>
           <p className="text-xs text-zinc-400 mb-3">
-            Tap any theme below whenever you get bored of the current UI colors
+            Tap any theme below to change the whole app aesthetic. 10 new vibe styles included!
           </p>
 
-          <div className="grid grid-cols-2 gap-2">
-            {APP_THEMES.map((theme) => {
+          {/* Vibe Tabs */}
+          <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar mb-3 pb-0.5">
+            {[
+              { id: 'all', label: `All (${APP_THEMES.length})` },
+              { id: 'cyber', label: '⚡ Cyber (3 New)' },
+              { id: 'tactical', label: '🛡️ Tactical (3 New)' },
+              { id: 'royale', label: '👑 Royale (4 New)' },
+            ].map((tab) => {
+              const isTabActive = settingsVibeFilter === tab.id;
+              return (
+                <button
+                  key={tab.id}
+                  type="button"
+                  onClick={() => {
+                    soundManager.playClickPop();
+                    setSettingsVibeFilter(tab.id as typeof settingsVibeFilter);
+                  }}
+                  className={`whitespace-nowrap rounded-xl px-3 py-1.5 text-[11px] font-extrabold uppercase tracking-wider transition cursor-pointer ${
+                    isTabActive
+                      ? 'bg-[#d4b26f] text-black shadow-sm'
+                      : 'bg-white/[0.05] text-zinc-400 hover:text-white hover:bg-white/10'
+                  }`}
+                >
+                  {tab.label}
+                </button>
+              );
+            })}
+          </div>
+
+          <div className="grid grid-cols-2 gap-2 max-h-96 overflow-y-auto no-scrollbar">
+            {APP_THEMES.filter((theme) => {
+              if (settingsVibeFilter === 'cyber') return theme.vibe === 'Cyber & Neon';
+              if (settingsVibeFilter === 'tactical') return theme.vibe === 'Tactical & Earth';
+              if (settingsVibeFilter === 'royale') return theme.vibe === 'Royale & Luxury' || theme.vibe === 'Cosmic & Void';
+              return true;
+            }).map((theme) => {
               const isSelected = (formData.themeId || 'gold') === theme.id;
               return (
                 <button
@@ -199,7 +234,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                       {theme.name}
                     </div>
                     <div className="text-[10px] text-zinc-400 truncate">
-                      {theme.subtitle}
+                      {theme.vibe ? `${theme.vibe} · ${theme.subtitle}` : theme.subtitle}
                     </div>
                   </div>
                 </button>

@@ -89,6 +89,26 @@ export const WorkoutRoutineHub: React.FC<WorkoutRoutineHubProps> = ({
     setEditingExerciseId(null);
   };
 
+  const handleToggleExerciseVariant = (dayId: string, exId: string) => {
+    const updatedDays = currentSystem.days.map((d) => {
+      if (d.id !== dayId) return d;
+      return {
+        ...d,
+        exercises: d.exercises.map((e) => {
+          if (e.id !== exId) return e;
+          const nextVariant: 'both' | 'session1' | 'session2' =
+            e.variant === 'session1' ? 'session2' : e.variant === 'session2' ? 'both' : 'session1';
+          return { ...e, variant: nextVariant };
+        }),
+      };
+    });
+    const updatedSystems = systems.map((s) =>
+      s.id === currentSystem.id ? { ...s, days: updatedDays } : s
+    );
+    soundManager.playClickPop();
+    onUpdateSystems(updatedSystems);
+  };
+
   const handleSaveRename = (dayId: string) => {
     if (!renameTitle.trim()) {
       setEditingDayId(null);
@@ -516,13 +536,38 @@ export const WorkoutRoutineHub: React.FC<WorkoutRoutineHubProps> = ({
                                   >
                                     <Pencil className="w-3 h-3" />
                                   </button>
+                                  {day.hasVariations && (
+                                    <button
+                                      type="button"
+                                      onClick={() => handleToggleExerciseVariant(day.id, ex.id)}
+                                      className={`text-[10px] font-mono font-bold px-1.5 py-0.5 rounded border transition cursor-pointer shrink-0 ${
+                                        ex.variant === 'session1'
+                                          ? 'bg-sky-500/15 border-sky-500/35 text-sky-300 hover:bg-sky-500/25'
+                                          : ex.variant === 'session2'
+                                          ? 'bg-indigo-500/15 border-indigo-500/35 text-indigo-300 hover:bg-indigo-500/25'
+                                          : 'bg-emerald-500/15 border-emerald-500/35 text-emerald-300 hover:bg-emerald-500/25'
+                                      }`}
+                                      title="Click to toggle session assignment (S1 / S2 / Both)"
+                                    >
+                                      {ex.variant === 'session1'
+                                        ? 'S1 Only'
+                                        : ex.variant === 'session2'
+                                        ? 'S2 Only'
+                                        : 'Shared (Both)'}
+                                    </button>
+                                  )}
                                 </div>
                                 <span className="font-mono text-xs text-zinc-400 block mt-0.5">
                                   {ex.targetSets} sets × {ex.targetReps}r @ {ex.defaultWeight}{settings.weightUnit}
                                 </span>
                                 {ex.cues && (
-                                  <span className="text-[11px] text-[#eed891]/80 block truncate mt-0.5">
+                                  <span className="text-[11px] text-[#eed891]/90 block truncate mt-0.5 font-medium">
                                     📌 {ex.cues}
+                                  </span>
+                                )}
+                                {ex.warning && (
+                                  <span className="text-[11px] text-amber-300 font-bold block truncate mt-0.5">
+                                    ⚠️ Caution: {ex.warning}
                                   </span>
                                 )}
                               </>

@@ -75,7 +75,15 @@ export function generateGymReportText(params: {
   lines.push(`-----------------------------------------`);
   if (dayWorkouts.length > 0) {
     dayWorkouts.forEach((w) => {
-      lines.push(`[DONE] Gym Workout: ${w.dayTitle} (${w.durationMinutes} min | ${w.totalVolume.toLocaleString()} ${unit} volume)`);
+      const timeInfo = (w.startTime || w.endTime)
+        ? ` • Time: ${w.startTime || '?'} → ${w.endTime || '?'}`
+        : '';
+      lines.push(`[DONE] Gym Workout: ${w.dayTitle} (${w.durationMinutes} min${timeInfo} | ${w.totalVolume.toLocaleString()} ${unit} volume)`);
+      if (w.startTime && w.endTime) {
+        lines.push(`  • Timing: Started at ${w.startTime} | Finished at ${w.endTime} (Duration: ${w.durationMinutes} min)`);
+      } else if (w.startTime) {
+        lines.push(`  • Timing: Started at ${w.startTime} (Duration: ${w.durationMinutes} min)`);
+      }
       const doneExercises: string[] = [];
       const skippedExercises: string[] = [];
 
@@ -93,8 +101,9 @@ export function generateGymReportText(params: {
                 e.name.toLowerCase() === ex.exerciseName.toLowerCase()
             )?.cues;
         const cueSuffix = exCue ? ` [Cue: "${exCue}"]` : '';
+        const warningSuffix = ex.warning ? ` [⚠️ CAUTION WARNING: "${ex.warning}"]` : '';
         const noteSuffix = ex.notes ? ` [Today's Note: "${ex.notes}"]` : '';
-        const detailsSuffix = `${cueSuffix}${noteSuffix}`;
+        const detailsSuffix = `${cueSuffix}${warningSuffix}${noteSuffix}`;
 
         if (completedSets.length > 0) {
           const perSetStr = completedSets
@@ -179,6 +188,7 @@ export function generateGymReportText(params: {
 export function generateNutritionReportText(params: {
   dateKey: string;
   userName?: string;
+  unit?: string;
   nutritionLogs: CompletedNutritionLog[];
   currentMealSystem?: MealSystem | null;
   walkingSessions?: WalkingSession[];
@@ -186,6 +196,7 @@ export function generateNutritionReportText(params: {
   const {
     dateKey,
     userName = 'Osama',
+    unit = 'kg',
     nutritionLogs,
     currentMealSystem,
     walkingSessions = [],
@@ -306,10 +317,32 @@ export function generateNutritionReportText(params: {
     lines.push(`None tracked.`);
   }
 
-  // 4. WALKS
+  // 4. BODY WEIGHT, SLEEP & WAKE SCHEDULE
+  const wakeTime = savedDayNutrition?.wakeTime || (isToday && currentMealSystem?.wakeTime ? currentMealSystem.wakeTime : undefined);
+  const sleepTime = savedDayNutrition?.sleepTime || (isToday && currentMealSystem?.sleepTime ? currentMealSystem.sleepTime : undefined);
+  let morningWeight = savedDayNutrition?.morningWeight;
+  if (!morningWeight && isToday && typeof window !== 'undefined') {
+    try {
+      const raw = localStorage.getItem(`osama_nutrition_morning_weight_${dateKey}`);
+      if (raw && !isNaN(parseFloat(raw))) morningWeight = parseFloat(raw);
+    } catch {
+      // Ignore
+    }
+  }
+
+  if (wakeTime || sleepTime || morningWeight) {
+    lines.push(``);
+    lines.push(`4. BODY WEIGHT & SLEEP/WAKE SCHEDULE`);
+    lines.push(`-----------------------------------------`);
+    if (morningWeight) lines.push(`• Morning Weight: ${morningWeight} ${unit}`);
+    if (wakeTime) lines.push(`• Wake-up Time: ${wakeTime}`);
+    if (sleepTime) lines.push(`• Bedtime / Slept at: ${sleepTime}`);
+  }
+
+  // 5. WALKS
   if (dayWalks.length > 0) {
     lines.push(``);
-    lines.push(`4. WALKING & CARDIO`);
+    lines.push(`5. WALKING & CARDIO`);
     lines.push(`-----------------------------------------`);
     const totalSteps = dayWalks.reduce((acc, w) => acc + w.steps, 0);
     const totalKm = dayWalks.reduce((acc, w) => acc + w.distanceKm, 0);
@@ -369,7 +402,15 @@ export function generateDailyReportText(params: {
 
   if (dayWorkouts.length > 0) {
     dayWorkouts.forEach((w) => {
-      lines.push(`[DONE] Gym Workout: ${w.dayTitle} (${w.durationMinutes} min | ${w.totalVolume.toLocaleString()} ${unit})`);
+      const timeInfo = (w.startTime || w.endTime)
+        ? ` • Time: ${w.startTime || '?'} → ${w.endTime || '?'}`
+        : '';
+      lines.push(`[DONE] Gym Workout: ${w.dayTitle} (${w.durationMinutes} min${timeInfo} | ${w.totalVolume.toLocaleString()} ${unit})`);
+      if (w.startTime && w.endTime) {
+        lines.push(`  • Timing: Started at ${w.startTime} | Finished at ${w.endTime} (Duration: ${w.durationMinutes} min)`);
+      } else if (w.startTime) {
+        lines.push(`  • Timing: Started at ${w.startTime} (Duration: ${w.durationMinutes} min)`);
+      }
       const doneExercises: string[] = [];
       const skippedExercises: string[] = [];
 
@@ -387,8 +428,9 @@ export function generateDailyReportText(params: {
                 e.name.toLowerCase() === ex.exerciseName.toLowerCase()
             )?.cues;
         const cueSuffix = exCue ? ` [Cue: "${exCue}"]` : '';
+        const warningSuffix = ex.warning ? ` [⚠️ CAUTION WARNING: "${ex.warning}"]` : '';
         const noteSuffix = ex.notes ? ` [Today's Note: "${ex.notes}"]` : '';
-        const detailsSuffix = `${cueSuffix}${noteSuffix}`;
+        const detailsSuffix = `${cueSuffix}${warningSuffix}${noteSuffix}`;
 
         if (completedSets.length > 0) {
           const perSetStr = completedSets
@@ -547,6 +589,28 @@ export function generateDailyReportText(params: {
     lines.push(
       `Walking / Cardio: ${totalSteps.toLocaleString()} steps (${totalKm.toFixed(1)} km across ${dayWalks.length} walk${dayWalks.length > 1 ? 's' : ''})`
     );
+  }
+
+  // 4. BODY WEIGHT, SLEEP & WAKE SCHEDULE
+  const wakeTime = savedDayNutrition?.wakeTime || (isToday && currentMealSystem?.wakeTime ? currentMealSystem.wakeTime : undefined);
+  const sleepTime = savedDayNutrition?.sleepTime || (isToday && currentMealSystem?.sleepTime ? currentMealSystem.sleepTime : undefined);
+  let morningWeight = savedDayNutrition?.morningWeight;
+  if (!morningWeight && isToday && typeof window !== 'undefined') {
+    try {
+      const raw = localStorage.getItem(`osama_nutrition_morning_weight_${dateKey}`);
+      if (raw && !isNaN(parseFloat(raw))) morningWeight = parseFloat(raw);
+    } catch {
+      // Ignore
+    }
+  }
+
+  if (wakeTime || sleepTime || morningWeight) {
+    lines.push(``);
+    lines.push(`4. BODY WEIGHT & SLEEP/WAKE SCHEDULE`);
+    lines.push(`-----------------------------------------`);
+    if (morningWeight) lines.push(`• Morning Weight: ${morningWeight} ${unit}`);
+    if (wakeTime) lines.push(`• Wake-up Time: ${wakeTime}`);
+    if (sleepTime) lines.push(`• Bedtime / Slept at: ${sleepTime}`);
   }
 
   return lines.join('\n');

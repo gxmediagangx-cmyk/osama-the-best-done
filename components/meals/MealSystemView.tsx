@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import confetti from 'canvas-confetti';
 import {
   MealSystem,
@@ -43,8 +43,11 @@ import {
   RotateCcw,
   AlertTriangle,
   FileText,
+  Sun,
+  Moon,
+  Scale,
 } from 'lucide-react';
-import { formatSafeNumber } from '@/lib/utils';
+import { formatSafeNumber, formatTimeTo12h, formatSafeDate } from '@/lib/utils';
 import { soundManager } from '@/lib/sound';
 import { getTodayDateKey, formatReadableDateKey, generateNutritionReportText } from '@/lib/export-ai';
 import { DEFAULT_MEAL_SYSTEMS } from '@/lib/default-meals';
@@ -255,6 +258,45 @@ export const MealSystemView: React.FC<MealSystemViewProps> = ({
 
   // Walk modal state
   const [isAddWalkOpen, setIsAddWalkOpen] = useState(false);
+
+  // Wake-up Time & Sleep Time tracking
+  const [wakeTime, setWakeTime] = useState<string>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const saved = localStorage.getItem('osama_nutrition_wake_time');
+        if (saved) return saved;
+      } catch {
+        // Ignore storage errors
+      }
+    }
+    return currentSystem?.wakeTime || '07:30';
+  });
+
+  const [sleepTime, setSleepTime] = useState<string>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const saved = localStorage.getItem('osama_nutrition_sleep_time');
+        if (saved) return saved;
+      } catch {
+        // Ignore storage errors
+      }
+    }
+    return currentSystem?.sleepTime || '23:30';
+  });
+
+  // Morning Body Weight tracking (Optional, starts completely empty each morning — never forces a default or carries over yesterday's number)
+  const [morningWeight, setMorningWeight] = useState<string>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const today = getTodayDateKey();
+        const saved = localStorage.getItem(`osama_nutrition_morning_weight_${today}`);
+        if (saved !== null) return saved;
+      } catch {
+        // Ignore storage errors
+      }
+    }
+    return '';
+  });
 
   if (!currentSystem) {
     return <div className="p-8 text-center text-zinc-500">No nutrition routine found.</div>;
@@ -977,12 +1019,8 @@ export const MealSystemView: React.FC<MealSystemViewProps> = ({
   const stepGoal = settings.dailyStepGoal || 10000;
   const stepPercent = Math.min(100, Math.round((todaySteps / stepGoal) * 100));
 
-  // Formatted date like "Tuesday, Oct 24"
-  const formattedTodayDate = new Date().toLocaleDateString('en-US', {
-    weekday: 'long',
-    month: 'short',
-    day: 'numeric',
-  });
+  // Formatted date like "Tue, Oct 24" deterministically safe for SSR
+  const formattedTodayDate = formatSafeDate(todayStr, { withWeekday: true });
 
   // Meal completion stats
   const totalMealsCount = currentSystem.meals.length;
@@ -990,8 +1028,40 @@ export const MealSystemView: React.FC<MealSystemViewProps> = ({
     (m) => m.consumed || (m.foods.length > 0 && m.foods.every((f) => f.consumed))
   ).length;
 
+  // Wake-up Time & Sleep Time handlers
+  const handleWakeTimeChange = (newVal: string) => {
+    setWakeTime(newVal);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('osama_nutrition_wake_time', newVal);
+    }
+  };
+
+  const handleSleepTimeChange = (newVal: string) => {
+    setSleepTime(newVal);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('osama_nutrition_sleep_time', newVal);
+    }
+  };
+
+  const handleMorningWeightChange = (newVal: string) => {
+    setMorningWeight(newVal);
+    if (typeof window !== 'undefined') {
+      try {
+        const today = getTodayDateKey();
+        if (newVal.trim()) {
+          localStorage.setItem(`osama_nutrition_morning_weight_${today}`, newVal.trim());
+        } else {
+          localStorage.removeItem(`osama_nutrition_morning_weight_${today}`);
+        }
+      } catch {
+        // Ignore storage errors
+      }
+    }
+  };
+
   const handleFinishNutritionDay = () => {
     const dateKey = getTodayDateKey();
+    const parsedWeight = morningWeight.trim() ? parseFloat(morningWeight.trim()) : undefined;
     const log: CompletedNutritionLog = {
       id: `nutr-${dateKey}-${Date.now()}`,
       date: dateKey,
@@ -999,6 +1069,9 @@ export const MealSystemView: React.FC<MealSystemViewProps> = ({
       systemId: currentSystem.id,
       systemName: currentSystem.name,
       routineName: currentSystem.name,
+      wakeTime: formatTimeTo12h(wakeTime),
+      sleepTime: formatTimeTo12h(sleepTime),
+      morningWeight: parsedWeight && !isNaN(parsedWeight) ? parsedWeight : undefined,
       mealsCompletedCount: completedMealsCount,
       totalMealsCount,
       meals: currentSystem.meals.map((m) => {
@@ -1212,6 +1285,77 @@ export const MealSystemView: React.FC<MealSystemViewProps> = ({
           {/* ----------------------------------------------------------------- */}
           {nutritionSubTab === 'today' && (
             <div className="space-y-3.5">
+              {/* Wake-Up Time Morning Logger */}
+              <div className="flex items-center justify-between gap-3 rounded-2xl border border-white/[0.08] bg-[#14141a] px-4 py-3 shadow-sm">
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-amber-500/15 text-amber-400">
+                    <Sun className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <span className="text-[11px] font-black uppercase tracking-wider text-zinc-400 block">
+                      Wake-Up Time
+                    </span>
+                    <span className="font-mono text-xs font-bold text-[#eed891]">
+                      {formatTimeTo12h(wakeTime) || 'Set wake time'}
+                    </span>
+                  </div>
+                </div>
+                <div className="flex items-center gap-1.5 shrink-0">
+                  <label className="text-[10px] uppercase font-bold text-zinc-500 cursor-pointer">Time:</label>
+                  <input
+                    type="time"
+                    value={wakeTime}
+                    onChange={(e) => handleWakeTimeChange(e.target.value)}
+                    className="rounded-xl border border-white/10 bg-zinc-950 px-2.5 py-1 font-mono text-xs font-bold text-white focus:border-[#d4b26f] focus:outline-none cursor-pointer"
+                  />
+                </div>
+              </div>
+
+              {/* Morning Body Weight Logger (Optional, starts empty each morning — never forces a default or carries over previous numbers) */}
+              <div className="flex items-center justify-between gap-3 rounded-2xl border border-white/[0.08] bg-[#14141a] px-4 py-3 shadow-sm">
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-sky-500/15 text-sky-400">
+                    <Scale className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <span className="text-[11px] font-black uppercase tracking-wider text-zinc-400 block">
+                      Morning Weight (Optional)
+                    </span>
+                    <span className="font-mono text-xs font-bold text-white">
+                      {morningWeight ? `${morningWeight} ${settings.weightUnit || 'kg'}` : 'Not weighed yet (blank)'}
+                    </span>
+                  </div>
+                </div>
+                <div className="flex items-center gap-1.5 shrink-0">
+                  <div className="relative flex items-center">
+                    <input
+                      type="number"
+                      step="0.1"
+                      min="20"
+                      max="300"
+                      placeholder="e.g. 80.5"
+                      value={morningWeight}
+                      onChange={(e) => handleMorningWeightChange(e.target.value)}
+                      className="w-24 sm:w-28 rounded-xl border border-white/10 bg-zinc-950 px-2.5 py-1 text-right font-mono text-xs font-bold text-white placeholder-zinc-600 focus:border-[#d4b26f] focus:outline-none"
+                    />
+                    <span className="ml-1 text-[11px] font-bold text-zinc-500 pointer-events-none">
+                      {settings.weightUnit || 'kg'}
+                    </span>
+                  </div>
+                  {morningWeight && (
+                    <button
+                      type="button"
+                      onClick={() => handleMorningWeightChange('')}
+                      className="flex h-7 w-7 items-center justify-center rounded-lg text-zinc-500 hover:text-rose-400 transition cursor-pointer"
+                      title="Clear morning weight"
+                      aria-label="Clear morning weight"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                </div>
+              </div>
+
               {/* Meal Cards List */}
               {currentSystem.meals.map((meal) => {
                 const isMealComplete =
@@ -1872,6 +2016,87 @@ export const MealSystemView: React.FC<MealSystemViewProps> = ({
                       </button>
                     </div>
                   ))}
+                </div>
+              </div>
+
+              {/* SLEEP & BEDTIME SCHEDULE CARD */}
+              <div className="rounded-2xl border border-white/[0.08] bg-[#14141a] p-4 shadow-sm">
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center gap-2">
+                    <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-indigo-500/15 text-indigo-400">
+                      <Moon className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <span className="text-sm font-extrabold text-white block">
+                        Morning Weight & Sleep Schedule
+                      </span>
+                      <span className="text-[10px] text-zinc-400">
+                        Body weight & circadian timing exported in your daily report
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  {/* Morning Weight */}
+                  <div className="rounded-xl border border-white/[0.06] bg-[#0c0c10] p-3">
+                    <label className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-sky-400/90">
+                      <Scale className="w-3.5 h-3.5 text-sky-400" />
+                      Morning Weight (Optional)
+                    </label>
+                    <div className="mt-1.5 relative flex items-center">
+                      <input
+                        type="number"
+                        step="0.1"
+                        min="20"
+                        max="300"
+                        placeholder="e.g. 80.5"
+                        value={morningWeight}
+                        onChange={(e) => handleMorningWeightChange(e.target.value)}
+                        className="w-full rounded-xl border border-white/10 bg-zinc-950 px-3 py-2 text-sm text-white font-mono font-bold focus:border-[#d4b26f] focus:outline-none pr-8"
+                      />
+                      <span className="absolute right-3 text-[11px] font-bold text-zinc-500 pointer-events-none">
+                        {settings.weightUnit || 'kg'}
+                      </span>
+                    </div>
+                    <div className="mt-1 text-[11px] text-zinc-400 font-mono">
+                      {morningWeight ? `${morningWeight} ${settings.weightUnit || 'kg'}` : 'Optional (empty)'}
+                    </div>
+                  </div>
+
+                  {/* Wake-Up Time */}
+                  <div className="rounded-xl border border-white/[0.06] bg-[#0c0c10] p-3">
+                    <label className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-amber-400/90">
+                      <Sun className="w-3.5 h-3.5 text-amber-400" />
+                      Wake-Up Time
+                    </label>
+                    <input
+                      type="time"
+                      value={wakeTime}
+                      onChange={(e) => handleWakeTimeChange(e.target.value)}
+                      className="mt-1.5 w-full rounded-xl border border-white/10 bg-zinc-950 px-3 py-2 text-sm text-white font-mono font-bold focus:border-[#d4b26f] focus:outline-none"
+                    />
+                    <div className="mt-1 text-[11px] text-zinc-400 font-mono">
+                      {formatTimeTo12h(wakeTime)}
+                    </div>
+                  </div>
+
+                  {/* Sleep Time ("What time did you sleep") */}
+                  <div className="rounded-xl border border-white/[0.06] bg-[#0c0c10] p-3">
+                    <label className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-indigo-400/90">
+                      <Moon className="w-3.5 h-3.5 text-indigo-400" />
+                      What time did you sleep?
+                    </label>
+                    <input
+                      type="time"
+                      value={sleepTime}
+                      onChange={(e) => handleSleepTimeChange(e.target.value)}
+                      className="mt-1.5 w-full rounded-xl border border-white/10 bg-zinc-950 px-3 py-2 text-sm text-white font-mono font-bold focus:border-[#d4b26f] focus:outline-none"
+                    />
+                    <div className="mt-1 text-[11px] text-zinc-400 font-mono">
+                      {formatTimeTo12h(sleepTime)}
+                    </div>
+                  </div>
                 </div>
               </div>
 

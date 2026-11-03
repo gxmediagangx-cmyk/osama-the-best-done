@@ -19,6 +19,7 @@ import {
   Pencil,
   X,
   Bookmark,
+  AlertTriangle,
 } from 'lucide-react';
 import { Exercise, ExerciseSet, AppSettings } from '@/lib/types';
 import { soundManager } from '@/lib/sound';
@@ -29,6 +30,8 @@ interface ExerciseCardProps {
   totalExercises?: number;
   hasVariations?: boolean;
   currentVariant?: 'session1' | 'session2';
+  currentDayId?: string;
+  currentSessionLogId?: string;
   settings: AppSettings;
   onUpdateExercise: (updated: Exercise) => void;
   onDeleteExercise: (exerciseId: string) => void;
@@ -43,6 +46,8 @@ export const ExerciseCard: React.FC<ExerciseCardProps> = ({
   totalExercises = 1,
   hasVariations = false,
   currentVariant,
+  currentDayId,
+  currentSessionLogId,
   settings,
   onUpdateExercise,
   onDeleteExercise,
@@ -56,6 +61,8 @@ export const ExerciseCard: React.FC<ExerciseCardProps> = ({
   const [cuesText, setCuesText] = useState(exercise.cues || '');
   const [isEditingNotes, setIsEditingNotes] = useState(false);
   const [notesText, setNotesText] = useState(exercise.notes || '');
+  const [isEditingWarning, setIsEditingWarning] = useState(false);
+  const [warningText, setWarningText] = useState(exercise.warning || '');
   const [isRenaming, setIsRenaming] = useState(false);
   const [nameText, setNameText] = useState(exercise.name);
 
@@ -65,8 +72,25 @@ export const ExerciseCard: React.FC<ExerciseCardProps> = ({
     setPrevExercise(exercise);
     if (!isEditingNotes) setNotesText(exercise.notes || '');
     if (!isEditingCues) setCuesText(exercise.cues || '');
+    if (!isEditingWarning) setWarningText(exercise.warning || '');
     if (!isRenaming) setNameText(exercise.name);
   }
+
+  const handleSaveWarning = () => {
+    const trimmed = warningText.trim();
+    if (trimmed !== (exercise.warning || '')) {
+      soundManager.playClickPop();
+      onUpdateExercise({
+        ...exercise,
+        warning: trimmed || undefined,
+        warningCreatedAt: trimmed ? new Date().toISOString() : undefined,
+        warningCreatedDayId: trimmed ? (currentDayId || exercise.warningCreatedDayId) : undefined,
+        warningCreatedVariant: trimmed ? (currentVariant || exercise.warningCreatedVariant) : undefined,
+        warningSessionLogId: trimmed ? (currentSessionLogId || exercise.warningSessionLogId) : undefined,
+      });
+    }
+    setIsEditingWarning(false);
+  };
 
 
   const handleStartRename = () => {
@@ -439,6 +463,19 @@ export const ExerciseCard: React.FC<ExerciseCardProps> = ({
                     <span>Today&apos;s Session Note</span>
                   </button>
 
+                  <button
+                    onClick={() => {
+                      setWarningText(exercise.warning || '');
+                      setIsEditingWarning(true);
+                      setShowMenu(false);
+                      soundManager.playClickPop();
+                    }}
+                    className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-amber-300 hover:bg-amber-500/10 touch-manipulation font-medium text-xs"
+                  >
+                    <AlertTriangle className="w-3.5 h-3.5 text-amber-400" />
+                    <span>{exercise.warning ? 'Edit Warning' : '+ Add Warning (1-Week)'}</span>
+                  </button>
+
                   {hasVariations && (
                     <div className="border-t border-white/10 pt-1 mt-1">
                       <div className="px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-zinc-400">
@@ -514,77 +551,15 @@ export const ExerciseCard: React.FC<ExerciseCardProps> = ({
         </div>
 
         {/* Second Row: Category & Sets Completed on Left, Reorder Up/Down on Right */}
-        <div className="mt-2.5 flex items-center justify-between gap-2 border-t border-white/[0.04] pt-2.5">
-          <div className="flex items-center gap-1.5 text-xs text-zinc-400 min-w-0 flex-wrap">
+        <div className="mt-2.5 flex items-center justify-between gap-2 border-t border-white/[0.04] pt-2">
+          <div className="flex items-center gap-2 text-xs text-zinc-400 min-w-0">
             <span className="capitalize font-semibold text-[#eed891] truncate">
               {exercise.category}
             </span>
             <span aria-hidden="true" className="text-zinc-600 shrink-0">·</span>
-            <span className="shrink-0">{completedCount}/{exercise.sets.length} done</span>
-
-            {/* Permanent Form Cue Pill */}
-            <span aria-hidden="true" className="text-zinc-600 shrink-0">·</span>
-            {exercise.cues ? (
-              <button
-                type="button"
-                onClick={() => {
-                  setCuesText(exercise.cues || '');
-                  setIsEditingCues(!isEditingCues);
-                  soundManager.playClickPop();
-                }}
-                className="inline-flex items-center gap-1 rounded-md bg-[#d4b26f]/15 border border-[#d4b26f]/35 px-1.5 py-0.5 text-[11px] font-bold text-[#eed891] hover:bg-[#d4b26f]/25 transition cursor-pointer"
-                title="Permanent Form & Technique Cue"
-              >
-                <Bookmark className="w-3 h-3 text-[#d4b26f]" />
-                <span>Cue</span>
-              </button>
-            ) : (
-              <button
-                type="button"
-                onClick={() => {
-                  setCuesText('');
-                  setIsEditingCues(true);
-                  soundManager.playClickPop();
-                }}
-                className="inline-flex items-center gap-1 rounded-md bg-white/[0.04] hover:bg-white/[0.08] border border-white/10 px-1.5 py-0.5 text-[11px] font-medium text-zinc-400 hover:text-zinc-200 transition cursor-pointer"
-                title="Add permanent form cue"
-              >
-                <Bookmark className="w-3 h-3 text-[#d4b26f]/70" />
-                <span>+ Cue</span>
-              </button>
-            )}
-
-            {/* Today's Session Note Pill (Resets upon saving workout) */}
-            <span aria-hidden="true" className="text-zinc-600 shrink-0">·</span>
-            {exercise.notes ? (
-              <button
-                type="button"
-                onClick={() => {
-                  setNotesText(exercise.notes || '');
-                  setIsEditingNotes(!isEditingNotes);
-                  soundManager.playClickPop();
-                }}
-                className="inline-flex items-center gap-1 rounded-md bg-sky-500/15 border border-sky-500/35 px-1.5 py-0.5 text-[11px] font-bold text-sky-300 hover:bg-sky-500/25 transition cursor-pointer"
-                title="Today's Session Note (resets after saving workout)"
-              >
-                <FileText className="w-3 h-3 text-sky-400" />
-                <span>Note</span>
-              </button>
-            ) : (
-              <button
-                type="button"
-                onClick={() => {
-                  setNotesText('');
-                  setIsEditingNotes(true);
-                  soundManager.playClickPop();
-                }}
-                className="inline-flex items-center gap-1 rounded-md bg-white/[0.04] hover:bg-white/[0.08] border border-white/10 px-1.5 py-0.5 text-[11px] font-medium text-zinc-400 hover:text-zinc-200 transition cursor-pointer"
-                title="Add today's session note (resets after workout save)"
-              >
-                <FileText className="w-3 h-3 text-sky-400/70" />
-                <span>+ Note</span>
-              </button>
-            )}
+            <span className="shrink-0 font-mono text-[11px] font-medium text-zinc-300">
+              {completedCount}/{exercise.sets.length} done
+            </span>
           </div>
 
           {totalExercises > 1 && (
@@ -616,6 +591,102 @@ export const ExerciseCard: React.FC<ExerciseCardProps> = ({
                 <ArrowDown className="w-3.5 h-3.5 stroke-[2.5]" />
               </button>
             </div>
+          )}
+        </div>
+
+        {/* Third Row: Dedicated Mobile-Friendly Quick Action Pills Strip (Cue · Note · Warning) */}
+        <div className="mt-2 flex items-center gap-1.5 overflow-x-auto pb-0.5 no-scrollbar">
+          {/* Permanent Form Cue Pill */}
+          {exercise.cues ? (
+            <button
+              type="button"
+              onClick={() => {
+                setCuesText(exercise.cues || '');
+                setIsEditingCues(!isEditingCues);
+                soundManager.playClickPop();
+              }}
+              className="inline-flex min-h-[30px] items-center gap-1.5 rounded-lg bg-[#d4b26f]/15 border border-[#d4b26f]/40 px-2.5 py-1 text-[11px] font-bold text-[#eed891] hover:bg-[#d4b26f]/25 active:scale-95 transition touch-manipulation cursor-pointer shrink-0"
+              title="Permanent Form & Technique Cue (Tap to edit)"
+            >
+              <Bookmark className="w-3.5 h-3.5 text-[#d4b26f]" />
+              <span>Cue</span>
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={() => {
+                setCuesText('');
+                setIsEditingCues(true);
+                soundManager.playClickPop();
+              }}
+              className="inline-flex min-h-[30px] items-center gap-1.5 rounded-lg bg-white/[0.04] hover:bg-white/[0.08] border border-white/10 px-2.5 py-1 text-[11px] font-medium text-zinc-400 hover:text-zinc-200 active:scale-95 transition touch-manipulation cursor-pointer shrink-0"
+              title="Add permanent form cue"
+            >
+              <Bookmark className="w-3.5 h-3.5 text-[#d4b26f]/70" />
+              <span>+ Cue</span>
+            </button>
+          )}
+
+          {/* Today's Session Note Pill (Resets upon saving workout) */}
+          {exercise.notes ? (
+            <button
+              type="button"
+              onClick={() => {
+                setNotesText(exercise.notes || '');
+                setIsEditingNotes(!isEditingNotes);
+                soundManager.playClickPop();
+              }}
+              className="inline-flex min-h-[30px] items-center gap-1.5 rounded-lg bg-sky-500/15 border border-sky-500/40 px-2.5 py-1 text-[11px] font-bold text-sky-300 hover:bg-sky-500/25 active:scale-95 transition touch-manipulation cursor-pointer shrink-0"
+              title="Today's Session Note (resets after saving workout)"
+            >
+              <FileText className="w-3.5 h-3.5 text-sky-400" />
+              <span>Note</span>
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={() => {
+                setNotesText('');
+                setIsEditingNotes(true);
+                soundManager.playClickPop();
+              }}
+              className="inline-flex min-h-[30px] items-center gap-1.5 rounded-lg bg-white/[0.04] hover:bg-white/[0.08] border border-white/10 px-2.5 py-1 text-[11px] font-medium text-zinc-400 hover:text-zinc-200 active:scale-95 transition touch-manipulation cursor-pointer shrink-0"
+              title="Add today's session note (resets after workout save)"
+            >
+              <FileText className="w-3.5 h-3.5 text-sky-400/70" />
+              <span>+ Note</span>
+            </button>
+          )}
+
+          {/* 1-Week Cycle Warning Pill - Prominent, Mobile-Friendly Amber Button */}
+          {exercise.warning ? (
+            <button
+              type="button"
+              onClick={() => {
+                setWarningText(exercise.warning || '');
+                setIsEditingWarning(!isEditingWarning);
+                soundManager.playClickPop();
+              }}
+              className="inline-flex min-h-[30px] items-center gap-1.5 rounded-lg bg-amber-500/20 border border-amber-500/50 px-2.5 py-1 text-[11px] font-black text-amber-300 hover:bg-amber-500/30 active:scale-95 transition touch-manipulation cursor-pointer shrink-0 shadow-sm"
+              title="Active Warning (Expires after 1 full cycle on this day)"
+            >
+              <AlertTriangle className="w-3.5 h-3.5 text-amber-400 stroke-[2.5]" />
+              <span>⚠️ Warning</span>
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={() => {
+                setWarningText('');
+                setIsEditingWarning(true);
+                soundManager.playClickPop();
+              }}
+              className="inline-flex min-h-[30px] items-center gap-1.5 rounded-lg bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 hover:border-amber-500/50 px-2.5 py-1 text-[11px] font-bold text-amber-300 hover:text-amber-200 active:scale-95 transition touch-manipulation cursor-pointer shrink-0"
+              title="Add 1-week caution warning for this exercise"
+            >
+              <AlertTriangle className="w-3.5 h-3.5 text-amber-400 stroke-[2.5]" />
+              <span>+ Warning</span>
+            </button>
           )}
         </div>
 
@@ -863,6 +934,147 @@ export const ExerciseCard: React.FC<ExerciseCardProps> = ({
             >
               Save Today&apos;s Note
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* 3. Caution Warning Banner (1-Week Auto-Cycle) */}
+      {exercise.warning && !isEditingWarning && (
+        <div
+          onClick={() => {
+            setWarningText(exercise.warning || '');
+            setIsEditingWarning(true);
+            soundManager.playClickPop();
+          }}
+          className="mx-3.5 mb-2.5 flex items-start justify-between gap-2 rounded-xl border border-amber-500/40 bg-[#1e1910] px-3 py-2 text-xs sm:text-sm text-zinc-200 hover:border-amber-500/60 transition cursor-pointer select-none group shadow-xs"
+          title="Exercise Caution Warning (Tap to edit — expires after 1 cycle on this day)"
+        >
+          <div className="flex items-start gap-2 min-w-0 flex-1">
+            <AlertTriangle className="w-3.5 h-3.5 text-amber-400 shrink-0 mt-0.5" />
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-1.5 mb-0.5 flex-wrap">
+                <span className="text-[10px] font-black uppercase tracking-wider text-amber-300">
+                  ⚠️ Caution Warning
+                </span>
+                <span className="text-[9px] font-bold text-amber-300 bg-amber-950/90 border border-amber-500/30 px-1 py-0.2 rounded">
+                  1-Week Cycle
+                </span>
+                {exercise.warningCreatedVariant && (
+                  <span className="text-[9px] font-mono font-bold text-amber-400/80 bg-white/5 border border-white/10 px-1 py-0.2 rounded">
+                    {exercise.warningCreatedVariant === 'session1' ? 'From Session 1' : 'From Session 2'}
+                  </span>
+                )}
+              </div>
+              <p className="leading-snug break-words text-amber-100 font-medium">
+                {exercise.warning}
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-1 shrink-0">
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                setWarningText(exercise.warning || '');
+                setIsEditingWarning(true);
+                soundManager.playClickPop();
+              }}
+              className="p-1 rounded text-zinc-500 hover:text-amber-300 transition shrink-0 opacity-70 group-hover:opacity-100"
+              title="Edit warning"
+              aria-label="Edit warning"
+            >
+              <Pencil className="w-3.5 h-3.5" />
+            </button>
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                soundManager.playClickPop();
+                onUpdateExercise({
+                  ...exercise,
+                  warning: undefined,
+                  warningCreatedAt: undefined,
+                  warningCreatedDayId: undefined,
+                  warningCreatedVariant: undefined,
+                  warningSessionLogId: undefined,
+                });
+                setWarningText('');
+                setIsEditingWarning(false);
+              }}
+              className="p-1 rounded text-zinc-500 hover:text-rose-400 transition shrink-0 opacity-70 group-hover:opacity-100"
+              title="Delete warning now"
+              aria-label="Delete warning now"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Editable Warning Form */}
+      {isEditingWarning && (
+        <div className="mx-3.5 mb-3 rounded-xl border border-amber-500/50 bg-[#1e1910] p-3 space-y-2">
+          <div className="flex items-center justify-between text-xs font-bold text-amber-300">
+            <span className="flex items-center gap-1.5">
+              <AlertTriangle className="w-3.5 h-3.5 text-amber-400" />
+              <span>Exercise Caution Warning</span>
+            </span>
+            {exercise.warning && (
+              <button
+                type="button"
+                onClick={() => {
+                  soundManager.playClickPop();
+                  onUpdateExercise({
+                    ...exercise,
+                    warning: undefined,
+                    warningCreatedAt: undefined,
+                    warningCreatedDayId: undefined,
+                    warningCreatedVariant: undefined,
+                    warningSessionLogId: undefined,
+                  });
+                  setWarningText('');
+                  setIsEditingWarning(false);
+                }}
+                className="text-[11px] font-semibold text-rose-400 hover:text-rose-300 transition"
+              >
+                Clear Warning
+              </button>
+            )}
+          </div>
+
+          <textarea
+            value={warningText}
+            onChange={(e) => setWarningText(e.target.value)}
+            onBlur={handleSaveWarning}
+            placeholder="e.g. Left shoulder clicking on 24kg, warm up rotators first and keep elbows tucked 45°..."
+            rows={2}
+            autoFocus
+            className="w-full rounded-lg border border-amber-500/30 bg-black/60 p-2.5 text-xs text-white placeholder-zinc-500 focus:border-amber-400 focus:outline-none"
+          />
+
+          <div className="flex items-center justify-between gap-2 pt-0.5">
+            <span className="text-[10px] text-zinc-400 leading-tight">
+              Stays for 1 week across both sessions. If added today, it is protected!
+            </span>
+            <div className="flex items-center gap-1.5 shrink-0">
+              <button
+                type="button"
+                onClick={() => {
+                  setWarningText(exercise.warning || '');
+                  setIsEditingWarning(false);
+                }}
+                className="rounded-lg bg-zinc-800 px-2.5 py-1 text-xs font-semibold text-zinc-300 hover:text-white"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleSaveWarning}
+                className="rounded-lg bg-amber-500 px-3 py-1 text-xs font-black uppercase text-black hover:bg-amber-400 shadow-sm"
+              >
+                Save
+              </button>
+            </div>
           </div>
         </div>
       )}

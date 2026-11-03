@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import confetti from 'canvas-confetti';
 import {
   WorkoutSystem,
@@ -17,11 +17,17 @@ import {
   RotateCcw,
   Trophy,
   Timer,
+  Clock,
   Pencil,
   Check,
   X,
 } from 'lucide-react';
 import { soundManager } from '@/lib/sound';
+import {
+  getCurrentTimeHHMM,
+  formatTimeTo12h,
+  calculateMinutesBetweenTimes,
+} from '@/lib/utils';
 
 interface ActiveWorkoutSessionProps {
   system: WorkoutSystem;
@@ -59,14 +65,73 @@ export const ActiveWorkoutSession: React.FC<ActiveWorkoutSessionProps> = ({
   const [currentVariant, setCurrentVariant] = useState<'session1' | 'session2'>(
     initialVariant || day.activeVariant || 'session1'
   );
+  const [sessionInstanceId] = useState(() => `sess-${Date.now()}`);
   const [isAddExerciseOpen, setIsAddExerciseOpen] = useState(false);
   const [showSessionCompleteDialog, setShowSessionCompleteDialog] = useState(false);
   const [sessionNotes, setSessionNotes] = useState('');
-  const [sessionDurationMinutes, setSessionDurationMinutes] = useState(50);
+  
+  // Start Time & Finish Time tracking
+  const [workoutStartTime, setWorkoutStartTime] = useState<string>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const saved = localStorage.getItem('osama_active_workout_start_time');
+        if (saved) return saved;
+        const now = getCurrentTimeHHMM();
+        localStorage.setItem('osama_active_workout_start_time', now);
+        return now;
+      } catch {
+        // Ignore storage errors
+      }
+    }
+    return getCurrentTimeHHMM();
+  });
+  const [workoutEndTime, setWorkoutEndTime] = useState<string>(() => getCurrentTimeHHMM());
+  const [sessionDurationMinutes, setSessionDurationMinutes] = useState<number>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const start = localStorage.getItem('osama_active_workout_start_time') || getCurrentTimeHHMM();
+        const diff = calculateMinutesBetweenTimes(start, getCurrentTimeHHMM());
+        return diff > 0 ? diff : 45;
+      } catch {
+        // Ignore storage errors
+      }
+    }
+    return 45;
+  });
+
   const [isRenamingDay, setIsRenamingDay] = useState(false);
   const [dayTitleInput, setDayTitleInput] = useState(day.title);
 
   const unit = settings.weightUnit;
+
+  const handleStartTimeChange = (newStart: string) => {
+    setWorkoutStartTime(newStart);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('osama_active_workout_start_time', newStart);
+    }
+    const diff = calculateMinutesBetweenTimes(newStart, workoutEndTime);
+    if (diff > 0) {
+      setSessionDurationMinutes(diff);
+    }
+  };
+
+  const handleEndTimeChange = (newEnd: string) => {
+    setWorkoutEndTime(newEnd);
+    const diff = calculateMinutesBetweenTimes(workoutStartTime, newEnd);
+    if (diff > 0) {
+      setSessionDurationMinutes(diff);
+    }
+  };
+
+  const handleOpenCompleteDialog = () => {
+    const now = getCurrentTimeHHMM();
+    setWorkoutEndTime(now);
+    const diff = calculateMinutesBetweenTimes(workoutStartTime, now);
+    if (diff > 0) {
+      setSessionDurationMinutes(diff);
+    }
+    setShowSessionCompleteDialog(true);
+  };
 
   const visibleExercises = day.exercises.filter((ex) => {
     if (!day.hasVariations) return true;
@@ -126,7 +191,7 @@ export const ActiveWorkoutSession: React.FC<ActiveWorkoutSessionProps> = ({
       : day.title;
 
     const log: CompletedSessionLog = {
-      id: `log-${new Date().getTime()}`,
+      id: sessionInstanceId,
       systemId: system.id,
       systemName: system.name,
       dayId: day.id,
@@ -134,6 +199,8 @@ export const ActiveWorkoutSession: React.FC<ActiveWorkoutSessionProps> = ({
       variant: day.hasVariations ? currentVariant : undefined,
       variantLabel: day.hasVariations ? activeVariantLabel : undefined,
       completedAt: new Date().toISOString(),
+      startTime: formatTimeTo12h(workoutStartTime),
+      endTime: formatTimeTo12h(workoutEndTime),
       durationMinutes: sessionDurationMinutes,
       totalVolume,
       totalSetsCompleted: totalSetsDone,
@@ -144,6 +211,7 @@ export const ActiveWorkoutSession: React.FC<ActiveWorkoutSessionProps> = ({
         category: e.category,
         cues: e.cues || undefined,
         notes: e.notes || undefined,
+        warning: e.warning || undefined,
         sets: e.sets.map((s) => ({
           setNumber: s.setNumber,
           weight: s.weight,
@@ -153,6 +221,10 @@ export const ActiveWorkoutSession: React.FC<ActiveWorkoutSessionProps> = ({
       })),
       userNotes: sessionNotes || undefined,
     };
+
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem('osama_active_workout_start_time');
+    }
 
     onSaveSession(log);
     setShowSessionCompleteDialog(false);
@@ -323,6 +395,30 @@ export const ActiveWorkoutSession: React.FC<ActiveWorkoutSessionProps> = ({
             style={{ width: `${progressPercent}%` }}
           />
         </div>
+
+        {/* Start Time Quick View & Edit */}
+        <div className="mt-3 flex items-center justify-between gap-2 rounded-xl bg-black/40 border border-white/[0.06] px-3 py-2">
+          <div className="flex items-center gap-2 min-w-0">
+            <Clock className="w-3.5 h-3.5 text-[#d4b26f] shrink-0" />
+            <span className="text-[11px] font-bold uppercase tracking-wider text-zinc-400">
+              Started Training:
+            </span>
+            <span className="font-mono text-xs font-black text-[#eed891]">
+              {formatTimeTo12h(workoutStartTime)}
+            </span>
+          </div>
+          <div className="flex items-center gap-1.5 shrink-0">
+            <label className="text-[10px] uppercase font-bold text-zinc-500 cursor-pointer">
+              Edit:
+            </label>
+            <input
+              type="time"
+              value={workoutStartTime}
+              onChange={(e) => handleStartTimeChange(e.target.value)}
+              className="rounded-lg border border-white/10 bg-zinc-900 px-2 py-0.5 font-mono text-xs font-bold text-white focus:border-[#d4b26f] focus:outline-none cursor-pointer"
+            />
+          </div>
+        </div>
       </div>
 
       {/* Session Variation Segmented Switcher */}
@@ -386,6 +482,8 @@ export const ActiveWorkoutSession: React.FC<ActiveWorkoutSessionProps> = ({
               totalExercises={visibleExercises.length}
               hasVariations={day.hasVariations}
               currentVariant={currentVariant}
+              currentDayId={day.id}
+              currentSessionLogId={sessionInstanceId}
               settings={settings}
               onUpdateExercise={onUpdateExercise}
               onDeleteExercise={onDeleteExercise}
@@ -415,7 +513,7 @@ export const ActiveWorkoutSession: React.FC<ActiveWorkoutSessionProps> = ({
           <div className="mx-auto max-w-[430px]">
             <button
               type="button"
-              onClick={() => setShowSessionCompleteDialog(true)}
+              onClick={handleOpenCompleteDialog}
               className="flex h-12 w-full items-center justify-between gap-2 whitespace-nowrap rounded-2xl bg-[#d4b26f] px-3.5 text-xs font-black uppercase tracking-wide text-black shadow-xl hover:bg-[#e2c487] active:scale-[0.98] transition touch-manipulation cursor-pointer"
             >
               <div className="flex items-center gap-2 min-w-0">
@@ -444,7 +542,7 @@ export const ActiveWorkoutSession: React.FC<ActiveWorkoutSessionProps> = ({
         initialVariant={currentVariant}
       />
 
-      {/* Session Finish Modal */}
+      {/* Session Finish Modal with Start/Finish Time Tracking & Auto-Calculated Duration */}
       {showSessionCompleteDialog && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 backdrop-blur-md p-4 animate-in fade-in">
           <div className="w-full max-w-sm rounded-2xl border border-white/10 bg-[#14141a] p-6 shadow-2xl text-white">
@@ -458,19 +556,65 @@ export const ActiveWorkoutSession: React.FC<ActiveWorkoutSessionProps> = ({
               </div>
             </div>
 
-            <div className="mt-4 space-y-3">
-              <div>
-                <label className="text-[11px] font-bold uppercase tracking-wider text-zinc-400">Duration (Minutes)</label>
-                <input
-                  type="number"
-                  value={sessionDurationMinutes}
-                  onChange={(e) => setSessionDurationMinutes(parseInt(e.target.value) || 45)}
-                  className="mt-1 w-full rounded-xl border border-white/10 bg-zinc-950 px-3 py-2 text-sm text-white font-mono focus:border-[#d4b26f] focus:outline-none"
-                />
+            <div className="mt-4 space-y-3.5">
+              {/* Start & Finish Time Inputs */}
+              <div className="grid grid-cols-2 gap-2.5">
+                <div>
+                  <label className="text-[11px] font-bold uppercase tracking-wider text-zinc-400 flex items-center gap-1">
+                    <Clock className="w-3 h-3 text-[#d4b26f]" />
+                    Started At
+                  </label>
+                  <input
+                    type="time"
+                    value={workoutStartTime}
+                    onChange={(e) => handleStartTimeChange(e.target.value)}
+                    className="mt-1 w-full rounded-xl border border-white/10 bg-zinc-950 px-3 py-2 text-sm text-white font-mono font-bold focus:border-[#d4b26f] focus:outline-none"
+                  />
+                  <div className="mt-0.5 text-[10px] text-zinc-500 font-mono">
+                    {formatTimeTo12h(workoutStartTime)}
+                  </div>
+                </div>
+
+                <div>
+                  <label className="text-[11px] font-bold uppercase tracking-wider text-zinc-400 flex items-center gap-1">
+                    <Clock className="w-3 h-3 text-emerald-400" />
+                    Finished At
+                  </label>
+                  <input
+                    type="time"
+                    value={workoutEndTime}
+                    onChange={(e) => handleEndTimeChange(e.target.value)}
+                    className="mt-1 w-full rounded-xl border border-white/10 bg-zinc-950 px-3 py-2 text-sm text-white font-mono font-bold focus:border-[#d4b26f] focus:outline-none"
+                  />
+                  <div className="mt-0.5 text-[10px] text-zinc-500 font-mono">
+                    {formatTimeTo12h(workoutEndTime)}
+                  </div>
+                </div>
+              </div>
+
+              {/* Auto-Calculated Duration Banner */}
+              <div className="flex items-center justify-between rounded-xl border border-[#d4b26f]/30 bg-[#d4b26f]/10 px-3 py-2.5">
+                <div>
+                  <span className="text-[11px] font-bold uppercase tracking-wider text-[#d4b26f]">
+                    Total Duration
+                  </span>
+                  <p className="text-[10px] text-zinc-400">Auto-calculated from times</p>
+                </div>
+                <div className="flex items-center gap-1 font-mono font-black text-sm text-[#eed891]">
+                  <input
+                    type="number"
+                    value={sessionDurationMinutes}
+                    onChange={(e) => setSessionDurationMinutes(parseInt(e.target.value) || 0)}
+                    className="w-14 rounded-lg border border-white/10 bg-black/60 px-2 py-1 text-center font-mono text-sm font-black text-white focus:outline-none"
+                  />
+                  <span>min</span>
+                </div>
               </div>
 
               <div>
-                <label className="text-[11px] font-bold uppercase tracking-wider text-zinc-400">Personal Workout Notes</label>
+                <label className="text-[11px] font-bold uppercase tracking-wider text-zinc-400">
+                  Personal Workout Notes
+                </label>
                 <textarea
                   value={sessionNotes}
                   onChange={(e) => setSessionNotes(e.target.value)}

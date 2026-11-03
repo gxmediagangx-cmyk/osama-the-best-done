@@ -189,18 +189,54 @@ export const WorkoutSystemView: React.FC<WorkoutSystemViewProps> = ({
     // 1. Save completed session log into history
     onSaveSessionLog(log);
 
-    // 2. Automatically reset completed sets and temporary session notes for this day in the split,
-    // so the next workout starts with fresh uncompleted sets and clean notes, keeping permanent cues intact!
+    // 2. Automatically reset completed sets and temporary session notes for this day in the split.
+    // 1-WEEK CAUTION WARNING AUTO-DELETION RULE:
+    // - If the user added or edited a warning during THIS session (ex.warningSessionLogId === log.id), PROTECT IT! Keep it!
+    // - If the warning was created in a previous session and this is the matching day & variant cycle:
+    //   (ex.warningCreatedDayId === activeDay.id && (!activeDay.hasVariations || ex.warningCreatedVariant === log.variant)),
+    //   then this second completion of the same day completes the 1-week cycle -> AUTO-DELETE IT!
+    // - Otherwise (e.g. warning created on Sunday, currently saving Wednesday), KEEP IT!
     if (activeDay) {
       const updatedDays = currentSystem.days.map((d) => {
         if (d.id === activeDay.id) {
           return {
             ...d,
-            exercises: d.exercises.map((ex) => ({
-              ...ex,
-              notes: '', // Reset today's session note for the next workout!
-              sets: ex.sets.map((s) => ({ ...s, completed: false })),
-            })),
+            exercises: d.exercises.map((ex) => {
+              let updatedWarning = ex.warning;
+              let updatedWarningCreatedAt = ex.warningCreatedAt;
+              let updatedWarningCreatedDayId = ex.warningCreatedDayId;
+              let updatedWarningCreatedVariant = ex.warningCreatedVariant;
+              let updatedWarningSessionLogId = ex.warningSessionLogId;
+
+              if (ex.warning) {
+                const isCreatedInThisSession = ex.warningSessionLogId === log.id;
+                const isMatchingDay = !ex.warningCreatedDayId || ex.warningCreatedDayId === activeDay.id;
+                const isMatchingVariant =
+                  !activeDay.hasVariations ||
+                  !ex.warningCreatedVariant ||
+                  ex.warningCreatedVariant === log.variant;
+
+                // Auto-delete only when it has lived across a full week cycle (not created in this session, and saving matching day)
+                if (!isCreatedInThisSession && isMatchingDay && isMatchingVariant) {
+                  updatedWarning = undefined;
+                  updatedWarningCreatedAt = undefined;
+                  updatedWarningCreatedDayId = undefined;
+                  updatedWarningCreatedVariant = undefined;
+                  updatedWarningSessionLogId = undefined;
+                }
+              }
+
+              return {
+                ...ex,
+                notes: '', // Reset today's session note for the next workout!
+                warning: updatedWarning,
+                warningCreatedAt: updatedWarningCreatedAt,
+                warningCreatedDayId: updatedWarningCreatedDayId,
+                warningCreatedVariant: updatedWarningCreatedVariant,
+                warningSessionLogId: updatedWarningSessionLogId,
+                sets: ex.sets.map((s) => ({ ...s, completed: false })),
+              };
+            }),
           };
         }
         return d;
