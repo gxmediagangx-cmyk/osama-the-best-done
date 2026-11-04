@@ -19,6 +19,7 @@ import {
   generateNutritionReportText,
   getTodayDateKey,
   formatReadableDateKey,
+  toLocalDateKey,
   copyTextToClipboard,
 } from '@/lib/export-ai';
 
@@ -52,17 +53,6 @@ interface HistoryViewProps {
   onDeleteLog: (logId: string) => void;
   onDeleteBoxingLog?: (logId: string) => void;
   onDeleteNutritionLog?: (logId: string) => void;
-}
-
-function toLocalDateKey(isoOrDate: string): string {
-  if (!isoOrDate) return getTodayDateKey();
-  if (/^\d{4}-\d{2}-\d{2}$/.test(isoOrDate)) return isoOrDate;
-  const d = new Date(isoOrDate);
-  if (isNaN(d.getTime())) return isoOrDate.slice(0, 10);
-  const year = d.getFullYear();
-  const month = String(d.getMonth() + 1).padStart(2, '0');
-  const day = String(d.getDate()).padStart(2, '0');
-  return `${year}-${month}-${day}`;
 }
 
 export const HistoryView: React.FC<HistoryViewProps> = ({

@@ -46,10 +46,72 @@ export const WorkoutRoutineHub: React.FC<WorkoutRoutineHubProps> = ({
   const [renameTitle, setRenameTitle] = useState('');
   const [editingExerciseId, setEditingExerciseId] = useState<string | null>(null);
   const [renameExerciseName, setRenameExerciseName] = useState('');
-  const [selectedVariants, setSelectedVariants] = useState<Record<string, 'session1' | 'session2'>>({});
+  const [expandedFilter, setExpandedFilter] = useState<Record<string, 'all' | 'session1' | 'session2'>>({});
+  const [selectedVariants, setSelectedVariants] = useState<Record<string, 'session1' | 'session2'>>(() => {
+    const initial: Record<string, 'session1' | 'session2'> = {};
+    if (typeof window !== 'undefined') {
+      try {
+        currentSystem?.days.forEach((d) => {
+          if (d.hasVariations) {
+            const saved = localStorage.getItem(`osama_active_workout_variant_${d.id}`);
+            if (saved === 'session1' || saved === 'session2') {
+              initial[d.id] = saved;
+            } else if (d.activeVariant) {
+              initial[d.id] = d.activeVariant;
+            }
+          }
+        });
+      } catch {
+        // ignore
+      }
+    }
+    return initial;
+  });
 
   const getDayVariant = (day: WorkoutDay): 'session1' | 'session2' => {
     return selectedVariants[day.id] || day.activeVariant || 'session1';
+  };
+
+  const handleSelectDayVariant = (dayId: string, variant: 'session1' | 'session2') => {
+    soundManager.playClickPop();
+    setSelectedVariants((prev) => ({ ...prev, [dayId]: variant }));
+    if (typeof window !== 'undefined') {
+      try {
+        localStorage.setItem(`osama_active_workout_variant_${dayId}`, variant);
+        localStorage.setItem('osama_active_workout_variant', variant);
+      } catch {
+        // ignore
+      }
+    }
+    const updatedDays = currentSystem.days.map((d) =>
+      d.id === dayId ? { ...d, activeVariant: variant } : d
+    );
+    const updatedSystems = systems.map((s) =>
+      s.id === currentSystem.id ? { ...s, days: updatedDays } : s
+    );
+    onUpdateSystems(updatedSystems);
+  };
+
+  const handleSetExerciseVariant = (
+    dayId: string,
+    exId: string,
+    newVariant: 'both' | 'session1' | 'session2'
+  ) => {
+    const updatedDays = currentSystem.days.map((d) => {
+      if (d.id !== dayId) return d;
+      return {
+        ...d,
+        exercises: d.exercises.map((e) => {
+          if (e.id !== exId) return e;
+          return { ...e, variant: newVariant };
+        }),
+      };
+    });
+    const updatedSystems = systems.map((s) =>
+      s.id === currentSystem.id ? { ...s, days: updatedDays } : s
+    );
+    soundManager.playClickPop();
+    onUpdateSystems(updatedSystems);
   };
 
   if (!currentSystem) {
@@ -401,10 +463,7 @@ export const WorkoutRoutineHub: React.FC<WorkoutRoutineHubProps> = ({
                     <div className="flex rounded-xl bg-black/60 p-1 border border-white/10 gap-1">
                       <button
                         type="button"
-                        onClick={() => {
-                          soundManager.playClickPop();
-                          setSelectedVariants((prev) => ({ ...prev, [day.id]: 'session1' }));
-                        }}
+                        onClick={() => handleSelectDayVariant(day.id, 'session1')}
                         className={`flex-1 py-2 px-3 rounded-lg text-xs font-bold transition flex items-center justify-center gap-1.5 touch-manipulation cursor-pointer ${
                           activeVariant === 'session1'
                             ? 'bg-[#d4b26f] text-black shadow font-black'
@@ -415,10 +474,7 @@ export const WorkoutRoutineHub: React.FC<WorkoutRoutineHubProps> = ({
                       </button>
                       <button
                         type="button"
-                        onClick={() => {
-                          soundManager.playClickPop();
-                          setSelectedVariants((prev) => ({ ...prev, [day.id]: 'session2' }));
-                        }}
+                        onClick={() => handleSelectDayVariant(day.id, 'session2')}
                         className={`flex-1 py-2 px-3 rounded-lg text-xs font-bold transition flex items-center justify-center gap-1.5 touch-manipulation cursor-pointer ${
                           activeVariant === 'session2'
                             ? 'bg-[#d4b26f] text-black shadow font-black'
@@ -472,134 +528,213 @@ export const WorkoutRoutineHub: React.FC<WorkoutRoutineHubProps> = ({
                     </div>
                   )}
 
-                  {isExpanded && (
-                    <div className="mt-2.5 space-y-2 animate-in fade-in">
-                      {visibleExercises.map((ex, vIdx) => (
-                        <div
-                          key={ex.id}
-                          className="flex items-center justify-between gap-2.5 rounded-xl bg-[#181820]/90 px-3 py-2.5 text-sm border border-white/[0.06]"
-                        >
-                          <div className="min-w-0 flex-1">
-                            {editingExerciseId === ex.id ? (
-                              <div className="flex items-center gap-1.5 w-full">
-                                <input
-                                  type="text"
-                                  value={renameExerciseName}
-                                  onChange={(e) => setRenameExerciseName(e.target.value)}
-                                  onKeyDown={(e) => {
-                                    if (e.key === 'Enter') {
-                                      e.preventDefault();
-                                      handleSaveRenameExercise(day.id, ex.id);
-                                    } else if (e.key === 'Escape') {
-                                      setEditingExerciseId(null);
-                                    }
-                                  }}
-                                  autoFocus
-                                  className="flex-1 min-w-0 rounded-lg border border-[#d4b26f] bg-zinc-950 px-2.5 py-1 text-xs sm:text-sm font-semibold text-white focus:outline-none"
-                                  placeholder="Exercise name..."
-                                />
-                                <button
-                                  type="button"
-                                  onClick={() => handleSaveRenameExercise(day.id, ex.id)}
-                                  className="flex h-7 w-7 items-center justify-center rounded-lg bg-[#d4b26f] text-black hover:bg-[#e2c487] transition cursor-pointer shrink-0"
-                                  title="Save exercise name"
-                                  aria-label="Save exercise name"
-                                >
-                                  <Check className="w-3.5 h-3.5 stroke-[3]" />
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => setEditingExerciseId(null)}
-                                  className="flex h-7 w-7 items-center justify-center rounded-lg bg-zinc-800 text-zinc-400 hover:text-white transition cursor-pointer shrink-0"
-                                  title="Cancel"
-                                  aria-label="Cancel rename"
-                                >
-                                  <X className="w-3.5 h-3.5 stroke-[2.5]" />
-                                </button>
-                              </div>
-                            ) : (
-                              <>
-                                <div className="flex items-center gap-1.5 group/ex">
-                                  <span
-                                    onClick={() => handleStartRenameExercise(ex.id, ex.name)}
-                                    className="font-semibold text-zinc-100 truncate cursor-pointer hover:text-[#eed891] transition"
-                                    title="Click to rename exercise"
-                                  >
-                                    {vIdx + 1}. {ex.name}
-                                  </span>
-                                  <button
-                                    type="button"
-                                    onClick={() => handleStartRenameExercise(ex.id, ex.name)}
-                                    className="p-1 rounded text-zinc-500 hover:text-[#eed891] opacity-60 group-hover/ex:opacity-100 transition cursor-pointer"
-                                    title="Rename exercise"
-                                    aria-label={`Rename ${ex.name}`}
-                                  >
-                                    <Pencil className="w-3 h-3" />
-                                  </button>
-                                  {day.hasVariations && (
-                                    <button
-                                      type="button"
-                                      onClick={() => handleToggleExerciseVariant(day.id, ex.id)}
-                                      className={`text-[10px] font-mono font-bold px-1.5 py-0.5 rounded border transition cursor-pointer shrink-0 ${
-                                        ex.variant === 'session1'
-                                          ? 'bg-sky-500/15 border-sky-500/35 text-sky-300 hover:bg-sky-500/25'
-                                          : ex.variant === 'session2'
-                                          ? 'bg-indigo-500/15 border-indigo-500/35 text-indigo-300 hover:bg-indigo-500/25'
-                                          : 'bg-emerald-500/15 border-emerald-500/35 text-emerald-300 hover:bg-emerald-500/25'
-                                      }`}
-                                      title="Click to toggle session assignment (S1 / S2 / Both)"
-                                    >
-                                      {ex.variant === 'session1'
-                                        ? 'S1 Only'
-                                        : ex.variant === 'session2'
-                                        ? 'S2 Only'
-                                        : 'Shared (Both)'}
-                                    </button>
-                                  )}
-                                </div>
-                                <span className="font-mono text-xs text-zinc-400 block mt-0.5">
-                                  {ex.targetSets} sets × {ex.targetReps}r @ {ex.defaultWeight}{settings.weightUnit}
-                                </span>
-                                {ex.cues && (
-                                  <span className="text-[11px] text-[#eed891]/90 block truncate mt-0.5 font-medium">
-                                    📌 {ex.cues}
-                                  </span>
-                                )}
-                                {ex.warning && (
-                                  <span className="text-[11px] text-amber-300 font-bold block truncate mt-0.5">
-                                    ⚠️ Caution: {ex.warning}
-                                  </span>
-                                )}
-                              </>
-                            )}
-                          </div>
+                  {isExpanded && (() => {
+                    const activeExpandedFilter = expandedFilter[day.id] || 'all';
+                    const orderedExercises = day.hasVariations && activeExpandedFilter !== 'all'
+                      ? day.exercises.filter((ex) => !ex.variant || ex.variant === 'both' || ex.variant === activeExpandedFilter)
+                      : day.exercises;
 
-                          {visibleExercises.length > 1 && editingExerciseId !== ex.id && (
-                            <div className="flex items-center gap-1 shrink-0">
+                    return (
+                      <div className="mt-2.5 space-y-2 animate-in fade-in">
+                        {/* Subfilter bar for days with variations so exercises NEVER mysteriously vanish */}
+                        {day.hasVariations && (
+                          <div className="flex items-center justify-between pb-2 mb-1.5 border-b border-white/[0.08] flex-wrap gap-2">
+                            <span className="text-[11px] font-bold uppercase tracking-wider text-zinc-400">
+                              Filter Exercise List:
+                            </span>
+                            <div className="flex rounded-xl bg-black/70 p-1 border border-white/10 gap-1">
                               <button
                                 type="button"
-                                disabled={vIdx === 0}
-                                onClick={() => handleMoveExerciseInDay(day.id, ex.id, 'up', day.hasVariations ? activeVariant : undefined)}
-                                className="flex h-9 w-9 items-center justify-center rounded-lg border border-white/10 bg-[#121217] text-zinc-300 hover:text-[#d4b26f] disabled:opacity-25 disabled:pointer-events-none active:scale-90 transition touch-manipulation cursor-pointer"
-                                title="Move up"
+                                onClick={() => setExpandedFilter((prev) => ({ ...prev, [day.id]: 'all' }))}
+                                className={`px-2.5 py-1 rounded-lg text-xs font-bold transition cursor-pointer ${
+                                  activeExpandedFilter === 'all'
+                                    ? 'bg-[#d4b26f] text-black font-black shadow-xs'
+                                    : 'text-zinc-400 hover:text-white'
+                                }`}
                               >
-                                <ArrowUp className="w-4 h-4 stroke-[2.5]" />
+                                All ({day.exercises.length})
                               </button>
                               <button
                                 type="button"
-                                disabled={vIdx === visibleExercises.length - 1}
-                                onClick={() => handleMoveExerciseInDay(day.id, ex.id, 'down', day.hasVariations ? activeVariant : undefined)}
-                                className="flex h-9 w-9 items-center justify-center rounded-lg border border-white/10 bg-[#121217] text-zinc-300 hover:text-[#d4b26f] disabled:opacity-25 disabled:pointer-events-none active:scale-90 transition touch-manipulation cursor-pointer"
-                                title="Move down"
+                                onClick={() => setExpandedFilter((prev) => ({ ...prev, [day.id]: 'session1' }))}
+                                className={`px-2.5 py-1 rounded-lg text-xs font-bold transition cursor-pointer ${
+                                  activeExpandedFilter === 'session1'
+                                    ? 'bg-[#d4b26f] text-black font-black shadow-xs'
+                                    : 'text-zinc-400 hover:text-white'
+                                }`}
                               >
-                                <ArrowDown className="w-4 h-4 stroke-[2.5]" />
+                                {day.session1Label ? day.session1Label.split(' ')[0] : 'S1'} ({day.exercises.filter((e) => !e.variant || e.variant === 'both' || e.variant === 'session1').length})
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setExpandedFilter((prev) => ({ ...prev, [day.id]: 'session2' }))}
+                                className={`px-2.5 py-1 rounded-lg text-xs font-bold transition cursor-pointer ${
+                                  activeExpandedFilter === 'session2'
+                                    ? 'bg-[#d4b26f] text-black font-black shadow-xs'
+                                    : 'text-zinc-400 hover:text-white'
+                                }`}
+                              >
+                                {day.session2Label ? day.session2Label.split(' ')[0] : 'S2'} ({day.exercises.filter((e) => !e.variant || e.variant === 'both' || e.variant === 'session2').length})
                               </button>
                             </div>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  )}
+                          </div>
+                        )}
+
+                        {orderedExercises.map((ex, vIdx) => (
+                          <div
+                            key={ex.id}
+                            className="flex items-center justify-between gap-2.5 rounded-xl bg-[#181820]/90 px-3 py-2.5 text-sm border border-white/[0.06]"
+                          >
+                            <div className="min-w-0 flex-1">
+                              {editingExerciseId === ex.id ? (
+                                <div className="flex items-center gap-1.5 w-full">
+                                  <input
+                                    type="text"
+                                    value={renameExerciseName}
+                                    onChange={(e) => setRenameExerciseName(e.target.value)}
+                                    onKeyDown={(e) => {
+                                      if (e.key === 'Enter') {
+                                        e.preventDefault();
+                                        handleSaveRenameExercise(day.id, ex.id);
+                                      } else if (e.key === 'Escape') {
+                                        setEditingExerciseId(null);
+                                      }
+                                    }}
+                                    autoFocus
+                                    className="flex-1 min-w-0 rounded-lg border border-[#d4b26f] bg-zinc-950 px-2.5 py-1 text-xs sm:text-sm font-semibold text-white focus:outline-none"
+                                    placeholder="Exercise name..."
+                                  />
+                                  <button
+                                    type="button"
+                                    onClick={() => handleSaveRenameExercise(day.id, ex.id)}
+                                    className="flex h-7 w-7 items-center justify-center rounded-lg bg-[#d4b26f] text-black hover:bg-[#e2c487] transition cursor-pointer shrink-0"
+                                    title="Save exercise name"
+                                    aria-label="Save exercise name"
+                                  >
+                                    <Check className="w-3.5 h-3.5 stroke-[3]" />
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => setEditingExerciseId(null)}
+                                    className="flex h-7 w-7 items-center justify-center rounded-lg bg-zinc-800 text-zinc-400 hover:text-white transition cursor-pointer shrink-0"
+                                    title="Cancel"
+                                    aria-label="Cancel rename"
+                                  >
+                                    <X className="w-3.5 h-3.5 stroke-[2.5]" />
+                                  </button>
+                                </div>
+                              ) : (
+                                <>
+                                  <div className="flex items-center gap-1.5 group/ex">
+                                    <span
+                                      onClick={() => handleStartRenameExercise(ex.id, ex.name)}
+                                      className="font-semibold text-zinc-100 truncate cursor-pointer hover:text-[#eed891] transition"
+                                      title="Click to rename exercise"
+                                    >
+                                      {vIdx + 1}. {ex.name}
+                                    </span>
+                                    <button
+                                      type="button"
+                                      onClick={() => handleStartRenameExercise(ex.id, ex.name)}
+                                      className="p-1 rounded text-zinc-500 hover:text-[#eed891] opacity-60 group-hover/ex:opacity-100 transition cursor-pointer"
+                                      title="Rename exercise"
+                                      aria-label={`Rename ${ex.name}`}
+                                    >
+                                      <Pencil className="w-3 h-3" />
+                                    </button>
+                                  </div>
+
+                                  {/* Dedicated 3-Way Day Assignment Buttons for Days with Variations */}
+                                  {day.hasVariations && (
+                                    <div className="mt-1.5 flex items-center gap-1.5 flex-wrap">
+                                      <span className="text-[10px] font-bold uppercase tracking-wider text-zinc-400">
+                                        Assigned To:
+                                      </span>
+                                      <div className="inline-flex rounded-lg bg-black/80 p-0.5 border border-white/10 gap-0.5">
+                                        <button
+                                          type="button"
+                                          onClick={() => handleSetExerciseVariant(day.id, ex.id, 'session1')}
+                                          className={`px-2 py-0.5 rounded text-[10px] font-bold transition cursor-pointer ${
+                                            ex.variant === 'session1'
+                                              ? 'bg-sky-500 text-black font-black shadow-xs'
+                                              : 'text-zinc-400 hover:text-white hover:bg-white/5'
+                                          }`}
+                                          title={`Assigned exclusively to ${day.session1Label || 'Session 1'}`}
+                                        >
+                                          {day.session1Label ? day.session1Label.split(' ')[0] : 'S1'} Only
+                                        </button>
+                                        <button
+                                          type="button"
+                                          onClick={() => handleSetExerciseVariant(day.id, ex.id, 'both')}
+                                          className={`px-2 py-0.5 rounded text-[10px] font-bold transition cursor-pointer ${
+                                            !ex.variant || ex.variant === 'both'
+                                              ? 'bg-[#d4b26f] text-black font-black shadow-xs'
+                                              : 'text-zinc-400 hover:text-white hover:bg-white/5'
+                                          }`}
+                                          title="Shared across both sessions (Weights overload continuously)"
+                                        >
+                                          Both Days
+                                        </button>
+                                        <button
+                                          type="button"
+                                          onClick={() => handleSetExerciseVariant(day.id, ex.id, 'session2')}
+                                          className={`px-2 py-0.5 rounded text-[10px] font-bold transition cursor-pointer ${
+                                            ex.variant === 'session2'
+                                              ? 'bg-indigo-400 text-black font-black shadow-xs'
+                                              : 'text-zinc-400 hover:text-white hover:bg-white/5'
+                                          }`}
+                                          title={`Assigned exclusively to ${day.session2Label || 'Session 2'}`}
+                                        >
+                                          {day.session2Label ? day.session2Label.split(' ')[0] : 'S2'} Only
+                                        </button>
+                                      </div>
+                                    </div>
+                                  )}
+
+                                  <span className="font-mono text-xs text-zinc-400 block mt-1">
+                                    {ex.targetSets} sets × {ex.targetReps}r @ {ex.defaultWeight}{settings.weightUnit}
+                                  </span>
+                                  {ex.cues && (
+                                    <span className="text-[11px] text-[#eed891]/90 block truncate mt-0.5 font-medium">
+                                      📌 {ex.cues}
+                                    </span>
+                                  )}
+                                  {ex.warning && (
+                                    <span className="text-[11px] text-amber-300 font-bold block truncate mt-0.5">
+                                      ⚠️ Caution: {ex.warning}
+                                    </span>
+                                  )}
+                                </>
+                              )}
+                            </div>
+
+                            {orderedExercises.length > 1 && editingExerciseId !== ex.id && (
+                              <div className="flex items-center gap-1 shrink-0">
+                                <button
+                                  type="button"
+                                  disabled={vIdx === 0}
+                                  onClick={() => handleMoveExerciseInDay(day.id, ex.id, 'up', day.hasVariations && activeExpandedFilter !== 'all' ? activeExpandedFilter : undefined)}
+                                  className="flex h-9 w-9 items-center justify-center rounded-lg border border-white/10 bg-[#121217] text-zinc-300 hover:text-[#d4b26f] disabled:opacity-25 disabled:pointer-events-none active:scale-90 transition touch-manipulation cursor-pointer"
+                                  title="Move up"
+                                >
+                                  <ArrowUp className="w-4 h-4 stroke-[2.5]" />
+                                </button>
+                                <button
+                                  type="button"
+                                  disabled={vIdx === orderedExercises.length - 1}
+                                  onClick={() => handleMoveExerciseInDay(day.id, ex.id, 'down', day.hasVariations && activeExpandedFilter !== 'all' ? activeExpandedFilter : undefined)}
+                                  className="flex h-9 w-9 items-center justify-center rounded-lg border border-white/10 bg-[#121217] text-zinc-300 hover:text-[#d4b26f] disabled:opacity-25 disabled:pointer-events-none active:scale-90 transition touch-manipulation cursor-pointer"
+                                  title="Move down"
+                                >
+                                  <ArrowDown className="w-4 h-4 stroke-[2.5]" />
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    );
+                  })()}
                 </div>
               </div>
             </div>

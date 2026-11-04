@@ -29,6 +29,8 @@ interface ExerciseCardProps {
   exerciseIndex: number;
   totalExercises?: number;
   hasVariations?: boolean;
+  session1Label?: string;
+  session2Label?: string;
   currentVariant?: 'session1' | 'session2';
   currentDayId?: string;
   currentSessionLogId?: string;
@@ -45,6 +47,8 @@ export const ExerciseCard: React.FC<ExerciseCardProps> = ({
   exerciseIndex,
   totalExercises = 1,
   hasVariations = false,
+  session1Label,
+  session2Label,
   currentVariant,
   currentDayId,
   currentSessionLogId,
@@ -488,13 +492,13 @@ export const ExerciseCard: React.FC<ExerciseCardProps> = ({
                           soundManager.playClickPop();
                           setShowMenu(false);
                         }}
-                        className={`flex w-full items-center justify-between rounded-xl px-3 py-1.5 text-xs font-medium ${
+                        className={`flex w-full items-center justify-between rounded-xl px-3 py-2 text-xs font-medium transition ${
                           !exercise.variant || exercise.variant === 'both'
                             ? 'text-[#eed891] bg-white/5 font-bold'
                             : 'text-zinc-300 hover:bg-zinc-800'
                         }`}
                       >
-                        <span>Both (Continuous)</span>
+                        <span>Both Days (Continuous Overload)</span>
                         {(!exercise.variant || exercise.variant === 'both') && <Check className="w-3.5 h-3.5 text-[#d4b26f]" />}
                       </button>
                       <button
@@ -504,13 +508,13 @@ export const ExerciseCard: React.FC<ExerciseCardProps> = ({
                           soundManager.playClickPop();
                           setShowMenu(false);
                         }}
-                        className={`flex w-full items-center justify-between rounded-xl px-3 py-1.5 text-xs font-medium ${
+                        className={`flex w-full items-center justify-between rounded-xl px-3 py-2 text-xs font-medium transition ${
                           exercise.variant === 'session1'
                             ? 'text-[#eed891] bg-white/5 font-bold'
                             : 'text-zinc-300 hover:bg-zinc-800'
                         }`}
                       >
-                        <span>Session 1 Only</span>
+                        <span>{session1Label ? `${session1Label} Only` : 'Session 1 Only'}</span>
                         {exercise.variant === 'session1' && <Check className="w-3.5 h-3.5 text-[#d4b26f]" />}
                       </button>
                       <button
@@ -520,13 +524,13 @@ export const ExerciseCard: React.FC<ExerciseCardProps> = ({
                           soundManager.playClickPop();
                           setShowMenu(false);
                         }}
-                        className={`flex w-full items-center justify-between rounded-xl px-3 py-1.5 text-xs font-medium ${
+                        className={`flex w-full items-center justify-between rounded-xl px-3 py-2 text-xs font-medium transition ${
                           exercise.variant === 'session2'
                             ? 'text-[#eed891] bg-white/5 font-bold'
                             : 'text-zinc-300 hover:bg-zinc-800'
                         }`}
                       >
-                        <span>Session 2 Only</span>
+                        <span>{session2Label ? `${session2Label} Only` : 'Session 2 Only'}</span>
                         {exercise.variant === 'session2' && <Check className="w-3.5 h-3.5 text-[#d4b26f]" />}
                       </button>
                     </div>

@@ -310,7 +310,8 @@ export interface CompletedNutritionLog {
   systemName: string;
   routineName?: string;
   wakeTime?: string;  // e.g. "07:30 AM" or "07:30"
-  sleepTime?: string; // e.g. "11:30 PM" or "23:30"
+  sleepTime?: string; // e.g. "11:30 PM" or "23:30" (bedtime from the night before)
+  sleepDurationMinutes?: number; // e.g. 480 (8 hours)
   morningWeight?: number; // e.g. 80.5 kg (optional, empty if not weighed)
   mealsCompletedCount: number;
   totalMealsCount: number;

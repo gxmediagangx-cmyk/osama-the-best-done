@@ -141,23 +141,42 @@ export const WorkoutSystemView: React.FC<WorkoutSystemViewProps> = ({
     onUpdateSystems(updatedSystems);
   };
 
-  const handleMoveExercise = (index: number, direction: 'up' | 'down') => {
+  const handleMoveExercise = (exerciseIdOrIndex: string | number, direction: 'up' | 'down') => {
     if (!activeDay) return;
-    const targetIndex = direction === 'up' ? index - 1 : index + 1;
-    if (targetIndex < 0 || targetIndex >= activeDay.exercises.length) return;
+    const currentExercises = activeDay.exercises;
+    let curIndex = -1;
+    if (typeof exerciseIdOrIndex === 'string') {
+      curIndex = currentExercises.findIndex((e) => e.id === exerciseIdOrIndex);
+    } else {
+      curIndex = exerciseIdOrIndex;
+    }
+    if (curIndex === -1 || curIndex >= currentExercises.length) return;
 
-    const updatedDays = currentSystem.days.map((d) => {
-      if (d.id === activeDay.id) {
-        const nextExercises = [...d.exercises];
-        const [moved] = nextExercises.splice(index, 1);
-        nextExercises.splice(targetIndex, 0, moved);
-        return {
-          ...d,
-          exercises: nextExercises,
-        };
-      }
-      return d;
-    });
+    let targetIndex = -1;
+    if (activeDay.hasVariations) {
+      const visible = currentExercises.filter(
+        (ex) => !ex.variant || ex.variant === 'both' || ex.variant === activeVariant
+      );
+      const targetExId = currentExercises[curIndex].id;
+      const vIdx = visible.findIndex((e) => e.id === targetExId);
+      if (vIdx === -1) return;
+      const targetVIdx = direction === 'up' ? vIdx - 1 : vIdx + 1;
+      if (targetVIdx < 0 || targetVIdx >= visible.length) return;
+      const adjacentEx = visible[targetVIdx];
+      targetIndex = currentExercises.findIndex((e) => e.id === adjacentEx.id);
+    } else {
+      targetIndex = direction === 'up' ? curIndex - 1 : curIndex + 1;
+    }
+
+    if (targetIndex < 0 || targetIndex >= currentExercises.length || targetIndex === curIndex) return;
+
+    const nextExercises = [...currentExercises];
+    const [moved] = nextExercises.splice(curIndex, 1);
+    nextExercises.splice(targetIndex, 0, moved);
+
+    const updatedDays = currentSystem.days.map((d) =>
+      d.id === activeDay.id ? { ...d, exercises: nextExercises } : d
+    );
 
     const updatedSystems = systems.map((s) =>
       s.id === currentSystem.id ? { ...s, days: updatedDays } : s

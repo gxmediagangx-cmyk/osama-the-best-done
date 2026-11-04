@@ -9,11 +9,22 @@ const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Se
 const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
 /**
- * Deterministic date formatter that never diverges between SSR and client locales/timezones
+ * Deterministic date formatter that never diverges between SSR and client locales/timezones.
+ * Automatically aligns timestamps between 00:00 and 04:59 to the previous active day (5:00 AM fitness day rule).
  */
 export function formatSafeDate(isoString: string, options?: { withWeekday?: boolean }): string {
   if (!isoString) return '';
-  const datePart = isoString.split('T')[0];
+  let datePart = isoString.split('T')[0];
+  if (isoString.includes('T')) {
+    const d = new Date(isoString);
+    if (!isNaN(d.getTime()) && d.getHours() < 5) {
+      d.setDate(d.getDate() - 1);
+      const year = d.getFullYear();
+      const month = String(d.getMonth() + 1).padStart(2, '0');
+      const day = String(d.getDate()).padStart(2, '0');
+      datePart = `${year}-${month}-${day}`;
+    }
+  }
   const parts = datePart.split('-');
   if (parts.length !== 3) return isoString;
 
@@ -24,13 +35,31 @@ export function formatSafeDate(isoString: string, options?: { withWeekday?: bool
   const monthName = MONTH_NAMES[monthIdx] || parts[1];
   
   if (options?.withWeekday) {
-    // UTC day of week calculation
     const d = new Date(Date.UTC(year, monthIdx, day));
     const dayOfWeek = WEEKDAYS[d.getUTCDay()] || '';
     return `${dayOfWeek}, ${monthName} ${day}`;
   }
 
   return `${monthName} ${day}`;
+}
+
+/**
+ * Calculates sleep duration between last night's bedtime and today's wake-up time.
+ * Handles crossing midnight (e.g. slept at 11:30 PM, woke at 7:30 AM -> 8 hrs).
+ */
+export function calculateSleepDuration(
+  sleepTimeStr?: string,
+  wakeTimeStr?: string
+): { hours: number; minutes: number; formatted: string; totalMinutes: number } | null {
+  if (!sleepTimeStr || !wakeTimeStr) return null;
+  const totalMinutes = calculateMinutesBetweenTimes(sleepTimeStr, wakeTimeStr);
+  if (totalMinutes <= 0 || totalMinutes > 18 * 60) return null;
+
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+  const formatted = minutes > 0 ? `${hours}h ${minutes}m` : `${hours}h`;
+
+  return { hours, minutes, formatted, totalMinutes };
 }
 
 /**

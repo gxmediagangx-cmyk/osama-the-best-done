@@ -6,20 +6,37 @@ import {
   WalkingSession,
   WorkoutSystem,
 } from './types';
+import { calculateSleepDuration } from './utils';
 
-function toLocalDateKey(isoOrDate: string): string {
-  if (!isoOrDate) return new Date().toISOString().slice(0, 10);
+/**
+ * Converts a date or ISO string to the local fitness date key (YYYY-MM-DD).
+ * Fitness day rollover happens at 5:00 AM every morning.
+ * Hours from 00:00 to 04:59 are assigned to the previous calendar day cycle.
+ */
+export function toLocalDateKey(isoOrDate: string): string {
+  if (!isoOrDate) return getTodayDateKey();
   if (/^\d{4}-\d{2}-\d{2}$/.test(isoOrDate)) return isoOrDate;
   const d = new Date(isoOrDate);
   if (isNaN(d.getTime())) return isoOrDate.slice(0, 10);
+  if (d.getHours() < 5) {
+    d.setDate(d.getDate() - 1);
+  }
   const year = d.getFullYear();
   const month = String(d.getMonth() + 1).padStart(2, '0');
   const day = String(d.getDate()).padStart(2, '0');
   return `${year}-${month}-${day}`;
 }
 
+/**
+ * Returns today's active fitness date key (YYYY-MM-DD).
+ * The fitness day starts at 5:00 AM.
+ * Workouts, meals, and logs recorded between 00:00 and 04:59 belong to yesterday's cycle.
+ */
 export function getTodayDateKey(): string {
   const d = new Date();
+  if (d.getHours() < 5) {
+    d.setDate(d.getDate() - 1);
+  }
   const year = d.getFullYear();
   const month = String(d.getMonth() + 1).padStart(2, '0');
   const day = String(d.getDate()).padStart(2, '0');
@@ -330,13 +347,20 @@ export function generateNutritionReportText(params: {
     }
   }
 
+  const sleepDuration = calculateSleepDuration(sleepTime, wakeTime);
+
   if (wakeTime || sleepTime || morningWeight) {
     lines.push(``);
-    lines.push(`4. BODY WEIGHT & SLEEP/WAKE SCHEDULE`);
+    lines.push(`4. BODY WEIGHT & SLEEP SCHEDULE (LAST NIGHT & TODAY)`);
     lines.push(`-----------------------------------------`);
-    if (morningWeight) lines.push(`• Morning Weight: ${morningWeight} ${unit}`);
-    if (wakeTime) lines.push(`• Wake-up Time: ${wakeTime}`);
-    if (sleepTime) lines.push(`• Bedtime / Slept at: ${sleepTime}`);
+    if (morningWeight) {
+      lines.push(`• Morning Weight: ${morningWeight} ${unit}`);
+    } else {
+      lines.push(`• Morning Weight: Not logged today (optional)`);
+    }
+    if (sleepTime) lines.push(`• Slept At (Night Before): ${sleepTime}`);
+    if (wakeTime) lines.push(`• Wake-Up Time (Today): ${wakeTime}`);
+    if (sleepDuration) lines.push(`• Total Sleep Duration: ${sleepDuration.formatted}`);
   }
 
   // 5. WALKS
@@ -604,13 +628,20 @@ export function generateDailyReportText(params: {
     }
   }
 
+  const sleepDuration = calculateSleepDuration(sleepTime, wakeTime);
+
   if (wakeTime || sleepTime || morningWeight) {
     lines.push(``);
-    lines.push(`4. BODY WEIGHT & SLEEP/WAKE SCHEDULE`);
+    lines.push(`4. BODY WEIGHT & SLEEP SCHEDULE (LAST NIGHT & TODAY)`);
     lines.push(`-----------------------------------------`);
-    if (morningWeight) lines.push(`• Morning Weight: ${morningWeight} ${unit}`);
-    if (wakeTime) lines.push(`• Wake-up Time: ${wakeTime}`);
-    if (sleepTime) lines.push(`• Bedtime / Slept at: ${sleepTime}`);
+    if (morningWeight) {
+      lines.push(`• Morning Weight: ${morningWeight} ${unit}`);
+    } else {
+      lines.push(`• Morning Weight: Not logged today (optional)`);
+    }
+    if (sleepTime) lines.push(`• Slept At (Night Before): ${sleepTime}`);
+    if (wakeTime) lines.push(`• Wake-Up Time (Today): ${wakeTime}`);
+    if (sleepDuration) lines.push(`• Total Sleep Duration: ${sleepDuration.formatted}`);
   }
 
   return lines.join('\n');

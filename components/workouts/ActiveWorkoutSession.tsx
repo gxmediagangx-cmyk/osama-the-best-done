@@ -39,7 +39,7 @@ interface ActiveWorkoutSessionProps {
   onUpdateExercise: (exercise: Exercise) => void;
   onDeleteExercise: (exerciseId: string) => void;
   onAddExercise: (newEx: Exercise) => void;
-  onMoveExercise: (index: number, direction: 'up' | 'down') => void;
+  onMoveExercise: (exerciseIdOrIndex: string | number, direction: 'up' | 'down') => void;
   onResetChecks: () => void;
   onSaveSession: (log: CompletedSessionLog) => void;
   onTriggerRestTimer: (seconds: number, label?: string) => void;
@@ -444,6 +444,14 @@ export const ActiveWorkoutSession: React.FC<ActiveWorkoutSessionProps> = ({
               onClick={() => {
                 soundManager.playClickPop();
                 setCurrentVariant('session1');
+                if (typeof window !== 'undefined') {
+                  try {
+                    localStorage.setItem(`osama_active_workout_variant_${day.id}`, 'session1');
+                    localStorage.setItem('osama_active_workout_variant', 'session1');
+                  } catch {
+                    // Ignore storage error
+                  }
+                }
               }}
               className={`flex-1 py-2 px-3 rounded-lg text-xs sm:text-sm font-bold transition flex items-center justify-center gap-1.5 touch-manipulation cursor-pointer ${
                 currentVariant === 'session1'
@@ -458,6 +466,14 @@ export const ActiveWorkoutSession: React.FC<ActiveWorkoutSessionProps> = ({
               onClick={() => {
                 soundManager.playClickPop();
                 setCurrentVariant('session2');
+                if (typeof window !== 'undefined') {
+                  try {
+                    localStorage.setItem(`osama_active_workout_variant_${day.id}`, 'session2');
+                    localStorage.setItem('osama_active_workout_variant', 'session2');
+                  } catch {
+                    // Ignore storage error
+                  }
+                }
               }}
               className={`flex-1 py-2 px-3 rounded-lg text-xs sm:text-sm font-bold transition flex items-center justify-center gap-1.5 touch-manipulation cursor-pointer ${
                 currentVariant === 'session2'
@@ -481,14 +497,16 @@ export const ActiveWorkoutSession: React.FC<ActiveWorkoutSessionProps> = ({
               exerciseIndex={idx}
               totalExercises={visibleExercises.length}
               hasVariations={day.hasVariations}
+              session1Label={day.session1Label}
+              session2Label={day.session2Label}
               currentVariant={currentVariant}
               currentDayId={day.id}
               currentSessionLogId={sessionInstanceId}
               settings={settings}
               onUpdateExercise={onUpdateExercise}
               onDeleteExercise={onDeleteExercise}
-              onMoveUp={() => onMoveExercise(idx, 'up')}
-              onMoveDown={() => onMoveExercise(idx, 'down')}
+              onMoveUp={() => onMoveExercise(exercise.id, 'up')}
+              onMoveDown={() => onMoveExercise(exercise.id, 'down')}
               onTriggerRestTimer={onTriggerRestTimer}
             />
           ))}

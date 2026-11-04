@@ -47,7 +47,7 @@ import {
   Moon,
   Scale,
 } from 'lucide-react';
-import { formatSafeNumber, formatTimeTo12h, formatSafeDate } from '@/lib/utils';
+import { formatSafeNumber, formatTimeTo12h, formatSafeDate, calculateSleepDuration } from '@/lib/utils';
 import { soundManager } from '@/lib/sound';
 import { getTodayDateKey, formatReadableDateKey, generateNutritionReportText } from '@/lib/export-ai';
 import { DEFAULT_MEAL_SYSTEMS } from '@/lib/default-meals';
@@ -272,9 +272,13 @@ export const MealSystemView: React.FC<MealSystemViewProps> = ({
     return currentSystem?.wakeTime || '07:30';
   });
 
+  // Last night's bedtime (the sleep time of the day before)
   const [sleepTime, setSleepTime] = useState<string>(() => {
     if (typeof window !== 'undefined') {
       try {
+        const today = getTodayDateKey();
+        const savedToday = localStorage.getItem(`osama_nutrition_sleep_time_${today}`);
+        if (savedToday) return savedToday;
         const saved = localStorage.getItem('osama_nutrition_sleep_time');
         if (saved) return saved;
       } catch {
@@ -297,6 +301,9 @@ export const MealSystemView: React.FC<MealSystemViewProps> = ({
     }
     return '';
   });
+
+  // Calculate actual sleep duration between last night's bedtime and today's wake-up time
+  const sleepDuration = calculateSleepDuration(sleepTime, wakeTime);
 
   if (!currentSystem) {
     return <div className="p-8 text-center text-zinc-500">No nutrition routine found.</div>;
@@ -1012,7 +1019,8 @@ export const MealSystemView: React.FC<MealSystemViewProps> = ({
     soundManager.playClickPop();
   };
 
-  const todayStr = new Date().toISOString().split('T')[0];
+  // Active fitness date (starts at 5:00 AM, so late-night meals after 12:00 AM stay with yesterday's cycle)
+  const todayStr = getTodayDateKey();
   const todayWalks = walkingSessions.filter((w) => w.date === todayStr);
   const todaySteps = todayWalks.reduce((acc, w) => acc + w.steps, 0);
   const todayDistance = todayWalks.reduce((acc, w) => acc + w.distanceKm, 0);
@@ -1032,14 +1040,26 @@ export const MealSystemView: React.FC<MealSystemViewProps> = ({
   const handleWakeTimeChange = (newVal: string) => {
     setWakeTime(newVal);
     if (typeof window !== 'undefined') {
-      localStorage.setItem('osama_nutrition_wake_time', newVal);
+      try {
+        localStorage.setItem('osama_nutrition_wake_time', newVal);
+        const today = getTodayDateKey();
+        localStorage.setItem(`osama_nutrition_wake_time_${today}`, newVal);
+      } catch {
+        // Ignore storage errors
+      }
     }
   };
 
   const handleSleepTimeChange = (newVal: string) => {
     setSleepTime(newVal);
     if (typeof window !== 'undefined') {
-      localStorage.setItem('osama_nutrition_sleep_time', newVal);
+      try {
+        localStorage.setItem('osama_nutrition_sleep_time', newVal);
+        const today = getTodayDateKey();
+        localStorage.setItem(`osama_nutrition_sleep_time_${today}`, newVal);
+      } catch {
+        // Ignore storage errors
+      }
     }
   };
 
@@ -1062,6 +1082,7 @@ export const MealSystemView: React.FC<MealSystemViewProps> = ({
   const handleFinishNutritionDay = () => {
     const dateKey = getTodayDateKey();
     const parsedWeight = morningWeight.trim() ? parseFloat(morningWeight.trim()) : undefined;
+    const sleepDur = calculateSleepDuration(sleepTime, wakeTime);
     const log: CompletedNutritionLog = {
       id: `nutr-${dateKey}-${Date.now()}`,
       date: dateKey,
@@ -1071,6 +1092,7 @@ export const MealSystemView: React.FC<MealSystemViewProps> = ({
       routineName: currentSystem.name,
       wakeTime: formatTimeTo12h(wakeTime),
       sleepTime: formatTimeTo12h(sleepTime),
+      sleepDurationMinutes: sleepDur?.totalMinutes,
       morningWeight: parsedWeight && !isNaN(parsedWeight) ? parsedWeight : undefined,
       mealsCompletedCount: completedMealsCount,
       totalMealsCount,
@@ -1353,6 +1375,39 @@ export const MealSystemView: React.FC<MealSystemViewProps> = ({
                       <X className="w-3.5 h-3.5" />
                     </button>
                   )}
+                </div>
+              </div>
+
+              {/* Slept At (Night Before) Logger */}
+              <div className="flex items-center justify-between gap-3 rounded-2xl border border-white/[0.08] bg-[#14141a] px-4 py-3 shadow-sm">
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-indigo-500/15 text-indigo-400">
+                    <Moon className="w-4 h-4" />
+                  </div>
+                  <div className="min-w-0">
+                    <span className="text-[11px] font-black uppercase tracking-wider text-zinc-400 block truncate">
+                      Slept At (Night Before)
+                    </span>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="font-mono text-xs font-bold text-white">
+                        {formatTimeTo12h(sleepTime) || 'Set sleep time'}
+                      </span>
+                      {sleepDuration && (
+                        <span className="rounded-md bg-indigo-500/15 px-1.5 py-0.5 text-[10px] font-bold text-indigo-300 font-mono">
+                          🌙 {sleepDuration.formatted} sleep
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+                <div className="flex items-center gap-1.5 shrink-0">
+                  <label className="text-[10px] uppercase font-bold text-zinc-500 cursor-pointer">Time:</label>
+                  <input
+                    type="time"
+                    value={sleepTime}
+                    onChange={(e) => handleSleepTimeChange(e.target.value)}
+                    className="rounded-xl border border-white/10 bg-zinc-950 px-2.5 py-1 font-mono text-xs font-bold text-white focus:border-[#d4b26f] focus:outline-none cursor-pointer"
+                  />
                 </div>
               </div>
 
@@ -2081,11 +2136,11 @@ export const MealSystemView: React.FC<MealSystemViewProps> = ({
                     </div>
                   </div>
 
-                  {/* Sleep Time ("What time did you sleep") */}
+                  {/* Slept At (Night Before) */}
                   <div className="rounded-xl border border-white/[0.06] bg-[#0c0c10] p-3">
                     <label className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-indigo-400/90">
                       <Moon className="w-3.5 h-3.5 text-indigo-400" />
-                      What time did you sleep?
+                      Slept At (Night Before)
                     </label>
                     <input
                       type="time"
@@ -2093,8 +2148,11 @@ export const MealSystemView: React.FC<MealSystemViewProps> = ({
                       onChange={(e) => handleSleepTimeChange(e.target.value)}
                       className="mt-1.5 w-full rounded-xl border border-white/10 bg-zinc-950 px-3 py-2 text-sm text-white font-mono font-bold focus:border-[#d4b26f] focus:outline-none"
                     />
-                    <div className="mt-1 text-[11px] text-zinc-400 font-mono">
-                      {formatTimeTo12h(sleepTime)}
+                    <div className="mt-1 flex items-center justify-between text-[11px] text-zinc-400 font-mono">
+                      <span>{formatTimeTo12h(sleepTime)}</span>
+                      {sleepDuration && (
+                        <span className="text-[#eed891] font-bold">{sleepDuration.formatted} sleep</span>
+                      )}
                     </div>
                   </div>
                 </div>

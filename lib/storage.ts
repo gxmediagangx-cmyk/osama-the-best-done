@@ -64,7 +64,7 @@ export const DEFAULT_WORKOUT_SYSTEMS: WorkoutSystem[] = [
               { id: 'set-cb-fb-3', setNumber: 3, weight: 60, reps: 10, completed: false },
             ],
           },
-          // SHARED ACROSS BOTH SESSIONS: Medium-Grip Lat Pulldown
+          // SESSION 2 ONLY (Wednesday): Medium-Grip Lat Pulldown
           {
             id: 'ex-cb-lat-pulldown',
             name: 'Medium-Grip Lat Pulldown',
@@ -72,7 +72,7 @@ export const DEFAULT_WORKOUT_SYSTEMS: WorkoutSystem[] = [
             targetSets: 3,
             targetReps: 10,
             defaultWeight: 55,
-            variant: 'both',
+            variant: 'session2',
             cues: 'Target: Lat Width • Grip: Medium overhand grip on lat bar',
             sets: [
               { id: 'set-cb-lp-1', setNumber: 1, weight: 55, reps: 10, completed: false },
@@ -1413,35 +1413,37 @@ class LocalGymDatabase {
           refMap.set(ex.name.toLowerCase().trim(), ex);
         });
 
-        // Track which default exercises already exist in this day
-        const existingNames = new Set(d.exercises.map((e) => e.name.toLowerCase().trim()));
-        const existingIds = new Set(d.exercises.map((e) => e.id));
-
         const updatedExercises = d.exercises.map((ex) => {
+          // CRITICAL: USER PREFERENCE IS PERMANENT.
+          // If the exercise already has an assigned variant ('session1' | 'session2' | 'both'),
+          // NEVER overwrite it with defaults! Respect user customization 100%.
+          if (ex.variant === 'session1' || ex.variant === 'session2' || ex.variant === 'both') {
+            return ex;
+          }
+
+          // Only if exercise had NO variant defined at all (legacy data with undefined), assign default
           const match = refMap.get(ex.id) || refMap.get(ex.name.toLowerCase().trim());
-          if (match && match.variant && ex.variant !== match.variant) {
+          if (match && match.variant) {
             migrated = true;
             return {
               ...ex,
               variant: match.variant,
             };
           }
-          return ex;
+
+          migrated = true;
+          return {
+            ...ex,
+            variant: 'both' as const,
+          };
         });
 
-        // If some default exercises are missing from the day (e.g. session 2 exercises were missing in old save)
-        const missingFromDefault: Exercise[] = [];
-        defaultDay.exercises.forEach((defEx) => {
-          const normName = defEx.name.toLowerCase().trim();
-          if (!existingNames.has(normName) && !existingIds.has(defEx.id)) {
-            missingFromDefault.push({ ...defEx });
-            migrated = true;
-          }
-        });
+        // CRITICAL: NEVER resurrect deleted exercises into a user's configured routine!
+        // User deletions are permanent and respected.
 
         return {
           ...d,
-          exercises: [...updatedExercises, ...missingFromDefault],
+          exercises: updatedExercises,
         };
       }),
     }));

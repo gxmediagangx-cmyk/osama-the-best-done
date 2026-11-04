@@ -4,6 +4,7 @@ import React, { useState } from 'react';
 import { X, Footprints, Plus } from 'lucide-react';
 import { WalkingSession } from '@/lib/types';
 import { soundManager } from '@/lib/sound';
+import { getTodayDateKey } from '@/lib/export-ai';
 
 interface AddWalkModalProps {
   isOpen: boolean;
@@ -36,7 +37,7 @@ export const AddWalkModal: React.FC<AddWalkModalProps> = ({
 
     const newWalk: WalkingSession = {
       id: `walk-${Date.now()}`,
-      date: new Date().toISOString().split('T')[0],
+      date: getTodayDateKey(),
       time,
       label: label.trim() || 'Outdoor Walk',
       durationMinutes,
